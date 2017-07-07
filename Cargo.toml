@@ -4,8 +4,5 @@ version = "0.1.0"
 authors = ["Marcin Mielniczuk <marmistrz.dev@gmail.com>"]
 
 [dependencies]
-rand = "0.*"
-colored = "1.*"
-nix = "0.*"
+nix = { git = "https://github.com/nix-rust/nix" }
 spawn-ptrace = "0.*"
-libc = "0.*"

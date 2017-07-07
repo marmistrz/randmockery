@@ -1,29 +1,25 @@
-extern crate colored;
 extern crate nix;
 extern crate spawn_ptrace;
 
 use std::process::Command;
-use nix::sys::ptrace::ptrace;
-use nix::sys::ptrace::ptrace::*;
-use nix::sys::wait::{wait, WaitStatus};
-use std::ptr;
-use nix::libc::c_void;
+use nix::sys::wait::{waitpid, WaitStatus};
+use nix::unistd::Pid;
 
 use spawn_ptrace::CommandPtraceSpawn;
 
-const RAX: i64 = 8 * 15;
+mod ptrace_mod;
 
 fn main() {
     let child = Command::new("ls").arg("-l").spawn_ptrace().unwrap();
-    let pid = child.id() as i32;
+    let pid = Pid::from_raw(child.id() as i32);
 
     loop {
-        let orig_rax = ptrace(PTRACE_PEEKUSER, pid, RAX as *mut c_void, ptr::null_mut()).unwrap();
+        let orig_rax = ptrace_mod::peekuser(pid, ptrace_mod::Register::RAX).unwrap();
         println!("We've got syscall: {}", orig_rax);
 
-        ptrace(PTRACE_SYSCALL, pid, ptr::null_mut(), ptr::null_mut()).unwrap();
+        ptrace_mod::syscall(pid).unwrap();
 
-        match wait() {
+        match waitpid(pid, None) {
             Ok(WaitStatus::Exited(_, code)) => {
                 println!("Inferior quit with code {}!", code);
                 break;
