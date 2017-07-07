@@ -1,6 +1,9 @@
 //! This is here only temporarily
 //! All of this should finally be merged into nix, it's where it belongs
 
+//! Only `PTRACE_PEEK*` return an actual result, so only these will return `nix::Result<c_long>`.
+//! All the others will just return `Result<()>`.
+
 extern crate nix;
 
 use nix::libc::{c_long, c_void};
@@ -77,12 +80,20 @@ fn reg_num(reg: Register) -> u16 {
     }
 }
 
-pub fn syscall(pid: Pid) -> nix::Result<c_long> {
-    // FIXME we should use `nix::Result<()>, there's no value that makes sense
+/// Makes the `PTRACE_SYSCALL` request to ptrace
+pub fn syscall(pid: Pid) -> nix::Result<()> {
     ptrace(PTRACE_SYSCALL, pid, ptr::null_mut(), ptr::null_mut())
+        .map(|_| ()) // ignore the useless return value
 }
 
+/// Makes the `PTRACE_PEEKUSER` request to ptrace
 pub fn peekuser(pid: Pid, reg: Register) -> nix::Result<c_long> {
     let reg_arg = reg_num(reg) as *mut c_void;
     ptrace(PTRACE_PEEKUSER, pid, reg_arg, ptr::null_mut())
+}
+
+/// Sets the process as traceable with `PTRACE_TRACEME`
+pub fn traceme() -> nix::Result<()> {
+    ptrace(PTRACE_TRACEME, Pid::from_raw(0), ptr::null_mut(), ptr::null_mut())
+        .map(|_| ())  // ignore the useless return value
 }

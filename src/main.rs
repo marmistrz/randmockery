@@ -4,10 +4,10 @@ extern crate spawn_ptrace;
 use std::process::Command;
 use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::Pid;
-
 use spawn_ptrace::CommandPtraceSpawn;
 
 mod ptrace_mod;
+mod syscall_table;
 
 fn main() {
     let child = Command::new("ls").arg("-l").spawn_ptrace().unwrap();
