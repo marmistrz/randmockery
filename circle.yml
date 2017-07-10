@@ -1,0 +1,17 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/randmockery
+    docker:
+      - image: jimmycuadra/rust:latest
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build randmockery
+          command: |
+            cargo build
+      - run:
+          name: Run tests
+          command: |
+            sh test.sh

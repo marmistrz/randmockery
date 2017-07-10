@@ -1,3 +1,3 @@
 #!/usr/bin/test.sh
-make
+make getrandom-test
 target/debug/ptrace-rust
