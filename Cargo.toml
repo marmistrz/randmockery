@@ -1,8 +1,9 @@
 [package]
-name = "ptrace-rust"
+name = "randmockery"
 version = "0.1.0"
 authors = ["Marcin Mielniczuk <marmistrz.dev@gmail.com>"]
 
 [dependencies]
+# NOTE we'll use the git versoin
 nix = { git = "https://github.com/nix-rust/nix" }
 spawn-ptrace = "0.*"

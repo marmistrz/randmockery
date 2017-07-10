@@ -1,5 +1,5 @@
 CFLAGS ?= -Wall -Wextra
-all: getrandom
+all: getrandom-test
 clean:
-	rm -f getrandom
+	rm -f getrandom-test
 .PHONY: clean all
