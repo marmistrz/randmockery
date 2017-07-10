@@ -54,17 +54,35 @@ fn ptrace_zero_mem(pid: Pid, ptr: usize, len: usize) {
     ptrace_mod::pokedata(pid, curr, newword).unwrap();
 }
 
+fn parse_args() -> Vec<String> {
+    use std::env;
+
+    let mut args_it = env::args();
+    let executable = args_it.next().unwrap();
+    let command: Vec<_> = args_it.collect();
+
+    if command.len() == 0 {
+        println!("Usage: {} command", executable);
+        std::process::exit(1);
+    }
+
+    command
+}
+
 fn main() {
     use ptrace_mod::PtraceSpawnable;
 
-    let child = Command::new("./getrandom-test").spawn_ptrace().expect(
-        "Error spawning the child process",
-    );
+    let command = parse_args();
+
+    println!("Executing binary: {}", command[0]);
+    let child = Command::new(&command[0])
+        .args(&command[1..])
+        .spawn_ptrace()
+        .expect("Error spawning the child process");
     let pid = Pid::from_raw(child.id() as i32); // This is awful, see https://github.com/nix-rust/nix/issues/656
 
     wait_sigtrap(pid); // there will be an initial stop after traceme, ignore it
     ptrace_mod::syscall(pid).unwrap(); // wait for another
-
 
     loop {
         let no = detect_syscall(pid); // detect enter, return syscall no
@@ -81,7 +99,6 @@ fn main() {
 
                 let num = ptrace_mod::peekdata(pid, bufptr).unwrap() as u64;
                 println!("The inferior received the number: {}", num);
-                // ptrace_mod::pokedata(pid, bufptr, 0).unwrap();
 
                 ptrace_zero_mem(pid, bufptr as usize, buflen);
             }
