@@ -57,7 +57,7 @@ fn ptrace_zero_mem(pid: Pid, ptr: usize, len: usize) {
 fn main() {
     use ptrace_mod::PtraceSpawnable;
 
-    let child = Command::new("./getrandom").spawn_ptrace().expect(
+    let child = Command::new("./getrandom-test").spawn_ptrace().expect(
         "Error spawning the child process",
     );
     let pid = Pid::from_raw(child.id() as i32); // This is awful, see https://github.com/nix-rust/nix/issues/656
