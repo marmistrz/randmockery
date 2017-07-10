@@ -29,6 +29,31 @@ fn detect_syscall(pid: Pid) -> i64 {
     ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap()
 }
 
+fn ptrace_zero_mem(pid: Pid, ptr: usize, len: usize) {
+    use std::mem;
+    let step = mem::size_of::<usize>();
+
+    let end = ptr + len;
+    let mut curr = ptr;
+    let mut next = curr + step;
+
+    while next < end {
+        ptrace_mod::pokedata(pid, curr, 0).unwrap();
+        curr += step;
+        next += step;
+    }
+
+    let lastword = ptrace_mod::peekdata(pid, curr).unwrap();
+    let mut bytes: [u8; 8] = unsafe { mem::transmute(lastword) };
+    let numzero = end - curr;
+    for i in 0..numzero {
+        bytes[i] = 0;
+    }
+    let newword: u64 = unsafe { mem::transmute(bytes) };
+
+    ptrace_mod::pokedata(pid, curr, newword).unwrap();
+}
+
 fn main() {
     use ptrace_mod::PtraceSpawnable;
 
@@ -51,21 +76,14 @@ fn main() {
                 println!("getrandom exited with an error, not touching it");
             } else {
                 println!("got getrandom!!");
-                let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap();
-                let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap();
-                let flags = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDX).unwrap();
-
-                println!(
-                    "no = {}, bufptr = {}, buflen = {}, flags = {}",
-                    no,
-                    bufptr,
-                    buflen,
-                    flags
-                );
+                let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
+                let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
 
                 let num = ptrace_mod::peekdata(pid, bufptr).unwrap() as u64;
                 println!("The inferior received the number: {}", num);
-                ptrace_mod::pokedata(pid, bufptr, 0).unwrap();
+                // ptrace_mod::pokedata(pid, bufptr, 0).unwrap();
+
+                ptrace_zero_mem(pid, bufptr as usize, buflen);
             }
         }
 

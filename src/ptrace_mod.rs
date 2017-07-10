@@ -64,12 +64,12 @@ pub fn peekuser(pid: Pid, reg: Register) -> nix::Result<c_long> {
 }
 
 /// Makes the `PTRACE_PEEKDATA` request to ptrace
-pub fn peekdata(pid: Pid, addr: c_long) -> nix::Result<c_long> {
+pub fn peekdata(pid: Pid, addr: usize) -> nix::Result<c_long> {
     ptrace(PTRACE_PEEKDATA, pid, addr as *mut c_void, ptr::null_mut())
 }
 
 /// Makes the `PTRACE_PEEKDATA` request to ptrace
-pub fn pokedata(pid: Pid, addr: c_long, val: c_long) -> nix::Result<()> {
+pub fn pokedata(pid: Pid, addr: usize, val: u64) -> nix::Result<()> {
     ptrace(
         PTRACE_POKEDATA,
         pid,
