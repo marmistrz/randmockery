@@ -21,6 +21,7 @@ use std::os::unix::process::CommandExt;
 #[cfg(target_arch = "x86_64")]
 // We're going to export it anyway
 #[allow(dead_code)]
+#[allow(non_camel_case_types)]
 pub enum Register {
     R15 = 0 * 8,
     R14 = 1 * 8,
@@ -61,26 +62,6 @@ pub fn peekuser(pid: Pid, reg: Register) -> nix::Result<c_long> {
     let reg_arg = (reg as i32) as *mut c_void;
     ptrace(PTRACE_PEEKUSER, pid, reg_arg, ptr::null_mut())
 }
-
-/// Convenience function to peek n-th syscall argument
-/// The arguments are indexed from 0
-/// Only arguments passed via registers are supported
-pub fn peek_nth_syscall_arg(pid: Pid, no: u64) -> nix::Result<c_long> {
-    fn arg(no: u64) -> self::Register {
-        use self::Register::*;
-        match no {
-            0 => RDI,
-            1 => RSI,
-            2 => R10,
-            3 => R8,
-            4 => R9,
-            _ => panic!(""),
-        }
-    }
-    peekuser(pid, arg(no))
-}
-
-
 
 /// Sets the process as traceable with `PTRACE_TRACEME`
 pub fn traceme() -> nix::Result<()> {
