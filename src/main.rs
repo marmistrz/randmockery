@@ -1,5 +1,4 @@
 extern crate nix;
-extern crate spawn_ptrace;
 
 use std::process::{Command, exit};
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -9,7 +8,7 @@ mod ptrace_mod;
 mod syscall_table;
 
 /// Return value: should we continue
-fn do_wait(pid: Pid) {
+fn wait_sigtrap(pid: Pid) {
     match waitpid(pid, None) {
         // TODO use PTRACE_O_TRACESYSGOOD
         // See this pull request: https://github.com/nix-rust/nix/pull/566
@@ -26,7 +25,7 @@ fn do_wait(pid: Pid) {
 // TODO the name could've been better
 /// Returns the syscall no
 fn detect_syscall(pid: Pid) -> i64 {
-    do_wait(pid);
+    wait_sigtrap(pid);
     ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap()
 }
 
@@ -38,17 +37,32 @@ fn main() {
     );
     let pid = Pid::from_raw(child.id() as i32); // This is awful, see https://github.com/nix-rust/nix/issues/656
 
+    wait_sigtrap(pid); // there will be an initial stop after traceme, ignore it
+    ptrace_mod::syscall(pid).unwrap(); // wait for another
+
+
     loop {
         let no = detect_syscall(pid); // detect enter, return syscall no
         ptrace_mod::syscall(pid).unwrap(); // wait for another
 
         let ret = detect_syscall(pid); // detect exit, return exit code
-        if no == syscall_table::getrandom && ret >= 0 {
-            println!("got getrandom!!");
-            let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap();
-            let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap();
+        if no == syscall_table::getrandom {
+            if ret < 0 {
+                println!("getrandom exited with an error, not touching it");
+            } else {
+                println!("got getrandom!!");
+                let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap();
+                let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap();
+                let flags = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDX).unwrap();
 
-            println!("Inferior requested {} ramdom bytes", bufptr);
+                println!(
+                    "no = {}, bufptr = {}, buflen = {}, flags = {}",
+                    no,
+                    bufptr,
+                    buflen,
+                    flags
+                );
+            }
         }
 
         ptrace_mod::syscall(pid).unwrap(); // wait for another

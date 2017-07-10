@@ -59,8 +59,12 @@ pub fn syscall(pid: Pid) -> nix::Result<()> {
 
 /// Makes the `PTRACE_PEEKUSER` request to ptrace
 pub fn peekuser(pid: Pid, reg: Register) -> nix::Result<c_long> {
-    let reg_arg = (reg as i32) as *mut c_void;
+    let reg_arg = (reg as u64) as *mut c_void;
     ptrace(PTRACE_PEEKUSER, pid, reg_arg, ptr::null_mut())
+}
+
+pub fn peekdata(pid: Pid, addr: *const c_void) -> nix::Result<c_long> {
+    ptrace(PTRACE_PEEKDATA, pid, addr as *mut c_void, ptr::null_mut())
 }
 
 /// Sets the process as traceable with `PTRACE_TRACEME`
