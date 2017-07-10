@@ -62,6 +62,10 @@ fn main() {
                     buflen,
                     flags
                 );
+
+                let num = ptrace_mod::peekdata(pid, bufptr).unwrap() as u64;
+                println!("The inferior received the number: {}", num);
+                ptrace_mod::pokedata(pid, bufptr, 0).unwrap();
             }
         }
 
