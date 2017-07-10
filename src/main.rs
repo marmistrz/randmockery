@@ -93,12 +93,9 @@ fn main() {
             if ret < 0 {
                 println!("getrandom exited with an error, not touching it");
             } else {
-                println!("got getrandom!!");
                 let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
                 let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
-
-                let num = ptrace_mod::peekdata(pid, bufptr).unwrap() as u64;
-                println!("The inferior received the number: {}", num);
+                println!("The inferior requested {} random bytes", buflen);
 
                 ptrace_zero_mem(pid, bufptr as usize, buflen);
             }
