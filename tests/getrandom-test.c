@@ -16,7 +16,6 @@ int main()
 	uint32_t x = VAL;
 	uint32_t y = VAL;
 	syscall(SYS_getrandom, &x, sizeof(x), 0);
-	assert(x == 0);
-	assert(y == VAL);
-	return 0;
+	if (x == 0 && y == VAL) return 0;
+	else return 1;
 }

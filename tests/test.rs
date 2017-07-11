@@ -15,10 +15,22 @@ mod tests {
             .unwrap();
         assert!(status.success());
 
-        let status = Command::new("target/debug/randmockery")
-            .arg("tests/getrandom-test")
-            .status()
-            .unwrap();
-        assert!(status.success());
+
+        {
+            let mut reg = OverrideRegistry::new();
+            reg.add(syscall_table::getrandom, |pid| patch_getrandom(pid, || 0));
+
+            let exitcode = intercept_syscalls(Command::new("tests/getrandom-test"), reg);
+            assert_eq!(exitcode, 0);
+        }
+
+
+        {
+            let mut reg = OverrideRegistry::new();
+            reg.add(syscall_table::getrandom, |pid| patch_getrandom(pid, || 8));
+
+            let exitcode = intercept_syscalls(Command::new("tests/getrandom-test"), reg);
+            assert!(exitcode != 0);
+        }
     }
 }

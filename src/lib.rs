@@ -93,13 +93,12 @@ where
     ptrace_setmem(pid, gen, bufptr as usize, buflen);
 }
 
-fn spawn_child(command: Vec<String>) -> Pid {
+fn spawn_child(mut command: Command) -> Pid {
     use ptrace_mod::PtraceSpawnable;
 
-    let child = Command::new(&command[0])
-        .args(&command[1..])
-        .spawn_ptrace()
-        .expect("Error spawning the child process");
+    let child = command.spawn_ptrace().expect(
+        "Error spawning the child process",
+    );
 
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
@@ -112,10 +111,7 @@ macro_rules! wait_sigtrap {
 }
 
 /// Return value: exitcode
-pub fn intercept_syscalls(command: Vec<String>, reg: OverrideRegistry) -> i8 {
-    assert!(command.len() > 0);
-
-    println!("Executing binary: {}", command[0]);
+pub fn intercept_syscalls(command: Command, reg: OverrideRegistry) -> i8 {
     let pid = spawn_child(command);
 
     wait_sigtrap!(pid); // there will be an initial stop after traceme, ignore it
