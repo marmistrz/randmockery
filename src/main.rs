@@ -80,25 +80,23 @@ fn patch_getrandom(pid: Pid) {
     ptrace_zero_mem(pid, bufptr as usize, buflen);
 }
 
-
-fn main() {
+fn spawn_child(command: Vec<String>) -> Pid {
     use ptrace_mod::PtraceSpawnable;
 
-    let command = parse_args();
-
-    println!("Executing binary: {}", command[0]);
     let child = Command::new(&command[0])
         .args(&command[1..])
         .spawn_ptrace()
         .expect("Error spawning the child process");
-    let pid = Pid::from_raw(child.id() as i32); // This is awful, see https://github.com/nix-rust/nix/issues/656
+
+    Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
+}
+
+fn intercept_syscalls(command: Vec<String>, reg: OverrideRegistry) {
+    println!("Executing binary: {}", command[0]);
+    let pid = spawn_child(command);
 
     wait_sigtrap(pid); // there will be an initial stop after traceme, ignore it
     ptrace_mod::syscall(pid).unwrap(); // wait for another
-
-    // TODO: modularize more. We'd like to test the loop with mocked OverrideRegistry
-    let mut reg = OverrideRegistry::new();
-    reg.add(syscall_table::getrandom, patch_getrandom);
 
     loop {
         let no = detect_syscall(pid); // detect enter, return syscall no
@@ -116,8 +114,16 @@ fn main() {
             }
         }
 
-
         ptrace_mod::syscall(pid).unwrap(); // wait for another
-
     }
+}
+
+fn main() {
+    let command = parse_args();
+
+    // TODO: modularize more. We'd like to test the loop with mocked OverrideRegistry
+    let mut reg = OverrideRegistry::new();
+    reg.add(syscall_table::getrandom, patch_getrandom);
+
+    intercept_syscalls(command, reg);
 }
