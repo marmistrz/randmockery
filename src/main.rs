@@ -32,8 +32,21 @@ fn detect_syscall(pid: Pid) -> i64 {
     ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap()
 }
 
-fn ptrace_zero_mem(pid: Pid, ptr: usize, len: usize) {
+fn ptrace_setmem<F>(pid: Pid, gen: F, ptr: usize, len: usize)
+where
+    F: Fn() -> u8,
+{
     use std::mem;
+
+    let genword = || -> u64 {
+        let mut word: [u8; 8] = [0; 8];
+        for x in word.iter_mut() {
+            *x = gen();
+        }
+
+        unsafe { mem::transmute(word) }
+    };
+
     let step = mem::size_of::<usize>();
 
     let end = ptr + len;
@@ -41,18 +54,22 @@ fn ptrace_zero_mem(pid: Pid, ptr: usize, len: usize) {
     let mut next = curr + step;
 
     while next < end {
-        ptrace_mod::pokedata(pid, curr, 0).unwrap();
+        ptrace_mod::pokedata(pid, curr, genword()).unwrap();
         curr += step;
         next += step;
     }
 
     let lastword = ptrace_mod::peekdata(pid, curr).unwrap();
-    let mut bytes: [u8; 8] = unsafe { mem::transmute(lastword) };
     let numzero = end - curr;
-    for i in 0..numzero {
-        bytes[i] = 0;
+    let newword: u64;
+
+    unsafe {
+        let mut bytes: [u8; 8] = mem::transmute(lastword);
+        for i in 0..numzero {
+            bytes[i] = gen();
+        }
+        newword = mem::transmute(bytes);
     }
-    let newword: u64 = unsafe { mem::transmute(bytes) };
 
     ptrace_mod::pokedata(pid, curr, newword).unwrap();
 }
@@ -72,12 +89,15 @@ fn parse_args() -> Vec<String> {
     command
 }
 
-fn patch_getrandom(pid: Pid) {
+fn patch_getrandom<F>(pid: Pid, gen: F)
+where
+    F: Fn() -> u8,
+{
     let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
     let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
     println!("The inferior requested {} random bytes", buflen);
 
-    ptrace_zero_mem(pid, bufptr as usize, buflen);
+    ptrace_setmem(pid, gen, bufptr as usize, buflen);
 }
 
 fn spawn_child(command: Vec<String>) -> Pid {
@@ -123,7 +143,7 @@ fn main() {
 
     // TODO: modularize more. We'd like to test the loop with mocked OverrideRegistry
     let mut reg = OverrideRegistry::new();
-    reg.add(syscall_table::getrandom, patch_getrandom);
+    reg.add(syscall_table::getrandom, |pid| patch_getrandom(pid, || 0));
 
     intercept_syscalls(command, reg);
 }
