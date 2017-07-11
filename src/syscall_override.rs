@@ -40,7 +40,8 @@ mod tests {
 
     #[test]
     fn test_registry() {
-        let reg = OverrideRegistry::new().add(17, |pid| println!("it works"));
-        let el = reg.iter().next();
+        let reg = OverrideRegistry::new().add(17, |_| {});
+        let el = reg.iter().next().unwrap();
+        assert_eq!(el.syscall, 17);
     }
 }
