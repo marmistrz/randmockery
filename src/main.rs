@@ -69,10 +69,29 @@ fn parse_args() -> Vec<String> {
     command
 }
 
+struct SyscallOverride {
+    /// syscall the override will match
+    syscall: i64,
+    atexit: fn(Pid) -> (),
+}
+
+fn patch_getrandom(pid: Pid) {
+    let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
+    let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
+    println!("The inferior requested {} random bytes", buflen);
+
+    ptrace_zero_mem(pid, bufptr as usize, buflen);
+}
+
 fn main() {
     use ptrace_mod::PtraceSpawnable;
 
     let command = parse_args();
+
+    let scover = SyscallOverride {
+        syscall: syscall_table::getrandom,
+        atexit: patch_getrandom,
+    };
 
     println!("Executing binary: {}", command[0]);
     let child = Command::new(&command[0])
@@ -89,15 +108,11 @@ fn main() {
         ptrace_mod::syscall(pid).unwrap(); // wait for another
 
         let ret = detect_syscall(pid); // detect exit, return exit code
-        if no == syscall_table::getrandom {
+        if no == scover.syscall {
             if ret < 0 {
                 println!("getrandom exited with an error, not touching it");
             } else {
-                let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
-                let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
-                println!("The inferior requested {} random bytes", buflen);
-
-                ptrace_zero_mem(pid, bufptr as usize, buflen);
+                (scover.atexit)(pid);
             }
         }
 
