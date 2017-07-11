@@ -5,7 +5,10 @@ use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::Pid;
 
 mod ptrace_mod;
+mod syscall_override;
 mod syscall_table;
+
+use syscall_override::OverrideRegistry;
 
 /// Return value: should we continue
 fn wait_sigtrap(pid: Pid) {
@@ -69,12 +72,6 @@ fn parse_args() -> Vec<String> {
     command
 }
 
-struct SyscallOverride {
-    /// syscall the override will match
-    syscall: i64,
-    atexit: fn(Pid) -> (),
-}
-
 fn patch_getrandom(pid: Pid) {
     let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
     let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
@@ -83,15 +80,11 @@ fn patch_getrandom(pid: Pid) {
     ptrace_zero_mem(pid, bufptr as usize, buflen);
 }
 
+
 fn main() {
     use ptrace_mod::PtraceSpawnable;
 
     let command = parse_args();
-
-    let scover = SyscallOverride {
-        syscall: syscall_table::getrandom,
-        atexit: patch_getrandom,
-    };
 
     println!("Executing binary: {}", command[0]);
     let child = Command::new(&command[0])
@@ -103,18 +96,25 @@ fn main() {
     wait_sigtrap(pid); // there will be an initial stop after traceme, ignore it
     ptrace_mod::syscall(pid).unwrap(); // wait for another
 
+    // TODO: modularize more. We'd like to test the loop with mocked OverrideRegistry
+    let reg = OverrideRegistry::new().add(syscall_table::getrandom, patch_getrandom);
+
     loop {
         let no = detect_syscall(pid); // detect enter, return syscall no
         ptrace_mod::syscall(pid).unwrap(); // wait for another
 
         let ret = detect_syscall(pid); // detect exit, return exit code
-        if no == scover.syscall {
-            if ret < 0 {
-                println!("getrandom exited with an error, not touching it");
-            } else {
-                (scover.atexit)(pid);
+
+        for ov in reg.iter() {
+            if no == ov.syscall {
+                if ret < 0 {
+                    println!("getrandom exited with an error, not touching it");
+                } else {
+                    (ov.atexit)(pid);
+                }
             }
         }
+
 
         ptrace_mod::syscall(pid).unwrap(); // wait for another
 
