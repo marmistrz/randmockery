@@ -97,7 +97,8 @@ fn main() {
     ptrace_mod::syscall(pid).unwrap(); // wait for another
 
     // TODO: modularize more. We'd like to test the loop with mocked OverrideRegistry
-    let reg = OverrideRegistry::new().add(syscall_table::getrandom, patch_getrandom);
+    let mut reg = OverrideRegistry::new();
+    reg.add(syscall_table::getrandom, patch_getrandom);
 
     loop {
         let no = detect_syscall(pid); // detect enter, return syscall no
