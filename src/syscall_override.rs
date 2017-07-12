@@ -1,12 +1,18 @@
 extern crate nix;
 
 use nix::unistd::Pid;
-use std::slice::IterMut;
+
+type SyscallNo = i64;
+pub struct HandlerData {
+    pub bufptr: usize,
+    pub buflen: usize,
+}
 
 pub struct SyscallOverride {
     /// syscall the override will match
-    pub syscall: i64,
-    pub atexit: Box<FnMut(Pid) -> ()>,
+    pub syscall: SyscallNo,
+    pub atenter: Box<FnMut(Pid) -> HandlerData>,
+    pub atexit: Box<FnMut(Pid, HandlerData) -> ()>,
 }
 
 pub struct OverrideRegistry {
@@ -18,19 +24,21 @@ impl OverrideRegistry {
         OverrideRegistry { overrides: Vec::new() }
     }
 
-    pub fn add<F>(&mut self, syscall: i64, atexit: F) -> &mut Self
+    pub fn add<F, G>(&mut self, syscall: SyscallNo, atenter: F, atexit: G) -> &mut Self
     where
-        F: 'static + FnMut(Pid) -> (),
+        F: 'static + FnMut(Pid) -> HandlerData,
+        G: 'static + FnMut(Pid, HandlerData) -> (),
     {
         self.overrides.push(SyscallOverride {
-            syscall,
+            syscall: syscall,
+            atenter: Box::new(atenter),
             atexit: Box::new(atexit),
         });
         self
     }
 
-    pub fn iter_mut(&mut self) -> IterMut<SyscallOverride> {
-        self.overrides.iter_mut()
+    pub fn find(&mut self, no: SyscallNo) -> Option<&mut SyscallOverride> {
+        self.overrides.iter_mut().find(|ov| ov.syscall == no)
     }
 }
 
@@ -41,8 +49,18 @@ mod tests {
     #[test]
     fn test_registry() {
         let mut reg = OverrideRegistry::new();
-        reg.add(17, |_| {});
-        let el = reg.iter_mut().next().unwrap();
+        let atenter = |_| {
+            HandlerData {
+                buflen: 0,
+                bufptr: 0,
+            }
+        };
+        let atexit = |_, _| {};
+
+        reg.add(17, atenter, atexit);
+        let el = reg.find(17).unwrap();
         assert_eq!(el.syscall, 17);
+        let len = (el.atenter)(Pid::from_raw(17)).buflen;
+        assert_eq!(len, 0);
     }
 }

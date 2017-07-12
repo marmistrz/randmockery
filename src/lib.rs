@@ -9,7 +9,9 @@ mod ptrace_mod;
 pub mod syscall_override;
 pub mod syscall_table;
 
-use syscall_override::OverrideRegistry;
+pub mod getrandom;
+
+use syscall_override::{OverrideRegistry, HandlerData};
 
 /// if the process has finished: return its exit code
 fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
@@ -26,13 +28,47 @@ fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
     }
 }
 
-fn ptrace_setmem<F>(pid: Pid, gen: &mut F, ptr: usize, len: usize)
+pub fn parse_args() -> Vec<String> {
+    use std::env;
+
+    let mut args_it = env::args();
+    let executable = args_it.next().unwrap();
+    let command: Vec<_> = args_it.collect();
+
+    if command.len() == 0 {
+        println!("Usage: {} command", executable);
+        std::process::exit(1);
+    }
+
+    command
+}
+
+fn spawn_child(mut command: Command) -> Pid {
+    use ptrace_mod::PtraceSpawnable;
+
+    let child = command.spawn_ptrace().expect(
+        "Error spawning the child process",
+    );
+
+    Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
+}
+
+macro_rules! wait_sigtrap {
+    ($pid:ident) => (match wait_sigtrap_fun($pid) {
+        None => {},
+        Some(x) => return x
+    })
+}
+
+pub fn ptrace_setmem<F>(pid: Pid, data: HandlerData, gen: &mut F)
 where
     F: FnMut() -> u8,
 {
     use std::mem;
 
     let step = mem::size_of::<usize>();
+    let ptr = data.bufptr;
+    let len = data.buflen;
 
     let end = ptr + len;
     let mut curr = ptr;
@@ -75,49 +111,6 @@ where
     );
 }
 
-pub fn parse_args() -> Vec<String> {
-    use std::env;
-
-    let mut args_it = env::args();
-    let executable = args_it.next().unwrap();
-    let command: Vec<_> = args_it.collect();
-
-    if command.len() == 0 {
-        println!("Usage: {} command", executable);
-        std::process::exit(1);
-    }
-
-    command
-}
-
-pub fn patch_getrandom<F>(pid: Pid, gen: &mut F)
-where
-    F: FnMut() -> u8,
-{
-    let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
-    let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
-    println!("The inferior requested {} random bytes", buflen);
-
-    ptrace_setmem(pid, gen, bufptr as usize, buflen);
-}
-
-fn spawn_child(mut command: Command) -> Pid {
-    use ptrace_mod::PtraceSpawnable;
-
-    let child = command.spawn_ptrace().expect(
-        "Error spawning the child process",
-    );
-
-    Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
-}
-
-macro_rules! wait_sigtrap {
-    ($pid:ident) => (match wait_sigtrap_fun($pid) {
-        None => {},
-        Some(x) => return x
-    })
-}
-
 /// Return value: exitcode
 pub fn intercept_syscalls(command: Command, mut reg: OverrideRegistry) -> i8 {
     let pid = spawn_child(command);
@@ -129,20 +122,23 @@ pub fn intercept_syscalls(command: Command, mut reg: OverrideRegistry) -> i8 {
         // detect enter, get syscall no
         wait_sigtrap!(pid);
         let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+        let ovride = reg.find(no);
 
-        ptrace_mod::syscall(pid).unwrap(); // wait for another
+        if ovride.is_none() {
+            ptrace_mod::syscall(pid).unwrap(); // ask for exit
+            wait_sigtrap!(pid); // wait for exit
+        } else {
+            let ovride = ovride.unwrap();
+            let data = (ovride.atenter)(pid);
 
-        // detect exit, get exit code
-        wait_sigtrap!(pid);
-        let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+            ptrace_mod::syscall(pid).unwrap(); // wait for another
+            wait_sigtrap!(pid); // wait for exit
 
-        for ov in reg.iter_mut() {
-            if no == ov.syscall {
-                if ret < 0 {
-                    println!("Syscall {} exited with an error, not touching it", no);
-                } else {
-                    (ov.atexit)(pid);
-                }
+            let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+            if ret < 0 {
+                println!("Syscall {} exited with an error, not touching it", no);
+            } else {
+                (ovride.atexit)(pid, data);
             }
         }
 
