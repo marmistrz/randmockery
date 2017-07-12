@@ -49,14 +49,16 @@ where
         };
 
         while next < end {
-            ptrace_mod::pokedata(pid, curr, genword()).unwrap();
+            ptrace_mod::pokedata(pid, curr, genword()).expect(
+                "Error changing the child process memory",
+            );
             curr += step;
             next += step;
         }
     }
 
 
-    let lastword = ptrace_mod::peekdata(pid, curr).unwrap();
+    let lastword = ptrace_mod::peekdata(pid, curr).expect("Error peeking the child process memory");
     let numzero = end - curr;
     let newword: u64;
 
@@ -68,7 +70,9 @@ where
         newword = mem::transmute(bytes);
     }
 
-    ptrace_mod::pokedata(pid, curr, newword).unwrap();
+    ptrace_mod::pokedata(pid, curr, newword).expect(
+        "Error changing the child process memory (last, incomplete bytes)",
+    );
 }
 
 pub fn parse_args() -> Vec<String> {
