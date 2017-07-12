@@ -3,3 +3,4 @@ target/
 getrandom
 .vscode
 getrandom-test
+getrandom-test-mocked

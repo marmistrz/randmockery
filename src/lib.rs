@@ -1,4 +1,5 @@
 extern crate nix;
+extern crate rand;
 
 use std::process::Command;
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -25,20 +26,11 @@ fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
     }
 }
 
-fn ptrace_setmem<F>(pid: Pid, gen: F, ptr: usize, len: usize)
+fn ptrace_setmem<F>(pid: Pid, gen: &mut F, ptr: usize, len: usize)
 where
-    F: Fn() -> u8,
+    F: FnMut() -> u8,
 {
     use std::mem;
-
-    let genword = || -> u64 {
-        let mut word: [u8; 8] = [0; 8];
-        for x in word.iter_mut() {
-            *x = gen();
-        }
-
-        unsafe { mem::transmute(word) }
-    };
 
     let step = mem::size_of::<usize>();
 
@@ -46,11 +38,23 @@ where
     let mut curr = ptr;
     let mut next = curr + step;
 
-    while next < end {
-        ptrace_mod::pokedata(pid, curr, genword()).unwrap();
-        curr += step;
-        next += step;
+    {
+        let mut genword = || -> u64 {
+            let mut word: [u8; 8] = [0; 8];
+            for x in word.iter_mut() {
+                *x = gen();
+            }
+
+            unsafe { mem::transmute(word) }
+        };
+
+        while next < end {
+            ptrace_mod::pokedata(pid, curr, genword()).unwrap();
+            curr += step;
+            next += step;
+        }
     }
+
 
     let lastword = ptrace_mod::peekdata(pid, curr).unwrap();
     let numzero = end - curr;
@@ -82,9 +86,9 @@ pub fn parse_args() -> Vec<String> {
     command
 }
 
-pub fn patch_getrandom<F>(pid: Pid, gen: F)
+pub fn patch_getrandom<F>(pid: Pid, gen: &mut F)
 where
-    F: Fn() -> u8,
+    F: FnMut() -> u8,
 {
     let bufptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize;
     let buflen = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize;
@@ -111,7 +115,7 @@ macro_rules! wait_sigtrap {
 }
 
 /// Return value: exitcode
-pub fn intercept_syscalls(command: Command, reg: OverrideRegistry) -> i8 {
+pub fn intercept_syscalls(command: Command, mut reg: OverrideRegistry) -> i8 {
     let pid = spawn_child(command);
 
     wait_sigtrap!(pid); // there will be an initial stop after traceme, ignore it
@@ -128,7 +132,7 @@ pub fn intercept_syscalls(command: Command, reg: OverrideRegistry) -> i8 {
         wait_sigtrap!(pid);
         let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
 
-        for ov in reg.iter() {
+        for ov in reg.iter_mut() {
             if no == ov.syscall {
                 if ret < 0 {
                     println!("Syscall {} exited with an error, not touching it", no);

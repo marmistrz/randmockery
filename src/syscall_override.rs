@@ -1,12 +1,12 @@
 extern crate nix;
 
 use nix::unistd::Pid;
-use std::slice::Iter;
+use std::slice::IterMut;
 
 pub struct SyscallOverride {
     /// syscall the override will match
     pub syscall: i64,
-    pub atexit: Box<Fn(Pid) -> ()>,
+    pub atexit: Box<FnMut(Pid) -> ()>,
 }
 
 pub struct OverrideRegistry {
@@ -20,7 +20,7 @@ impl OverrideRegistry {
 
     pub fn add<F>(&mut self, syscall: i64, atexit: F) -> &mut Self
     where
-        F: 'static + Fn(Pid) -> (),
+        F: 'static + FnMut(Pid) -> (),
     {
         self.overrides.push(SyscallOverride {
             syscall,
@@ -29,8 +29,8 @@ impl OverrideRegistry {
         self
     }
 
-    pub fn iter(&self) -> Iter<SyscallOverride> {
-        self.overrides.iter()
+    pub fn iter_mut(&mut self) -> IterMut<SyscallOverride> {
+        self.overrides.iter_mut()
     }
 }
 
@@ -42,7 +42,7 @@ mod tests {
     fn test_registry() {
         let mut reg = OverrideRegistry::new();
         reg.add(17, |_| {});
-        let el = reg.iter().next().unwrap();
+        let el = reg.iter_mut().next().unwrap();
         assert_eq!(el.syscall, 17);
     }
 }

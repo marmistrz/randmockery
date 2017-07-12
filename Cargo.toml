@@ -7,3 +7,4 @@ authors = ["Marcin Mielniczuk <marmistrz.dev@gmail.com>"]
 # NOTE we'll use the git versoin
 nix = { git = "https://github.com/nix-rust/nix" }
 spawn-ptrace = "0.*"
+rand = "0.*"
