@@ -1,16 +1,20 @@
+//! Module for patching the getrandom syscall
+//!
+//! This takes care of both getrandom(2) and getentropy(2) system calls since both of them use
+//! the sys_getrandom syscall.
 extern crate nix;
 extern crate rand;
 
-use std::cell::RefCell;
-
 use nix::unistd::Pid;
-use rand::{Rng, SeedableRng, StdRng};
 
 use ptrace_setmem;
 use ptrace_mod;
 use syscall_override::HandlerData;
 
 fn random_byte() -> u8 {
+    use std::cell::RefCell;
+    use rand::{Rng, SeedableRng, StdRng};
+
     thread_local! {
         static RNG: RefCell<StdRng> = RefCell::new(StdRng::from_seed(&[1, 2, 3, 4]));
     }
@@ -28,3 +32,5 @@ pub fn atenter(pid: Pid) -> HandlerData {
 pub fn atexit(pid: Pid, data: HandlerData) {
     ptrace_setmem(pid, data, &mut random_byte);
 }
+
+pub const SYSCALL_NO: i64 = 318;
