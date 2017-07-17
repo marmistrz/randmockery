@@ -7,7 +7,6 @@ use nix::unistd::Pid;
 
 mod ptrace_mod;
 pub mod syscall_override;
-pub mod syscall_table;
 
 pub mod getrandom;
 

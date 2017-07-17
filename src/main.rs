@@ -1,6 +1,6 @@
 extern crate randmockery;
 
-use randmockery::{parse_args, intercept_syscalls, syscall_table, getrandom};
+use randmockery::{parse_args, intercept_syscalls, getrandom};
 use randmockery::syscall_override::OverrideRegistry;
 
 extern crate rand;
@@ -15,11 +15,7 @@ fn main() {
 
     let mut reg = OverrideRegistry::new();
 
-    reg.add(
-        syscall_table::getrandom,
-        getrandom::atenter,
-        getrandom::atexit,
-    );
+    reg.add(getrandom::SYSCALL_NO, getrandom::atenter, getrandom::atexit);
 
     let exitcode = intercept_syscalls(command, reg);
 

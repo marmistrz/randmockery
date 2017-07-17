@@ -5,7 +5,7 @@ extern crate rand;
 
 #[cfg(test)]
 mod tests {
-    use randmockery::{intercept_syscalls, syscall_table, getrandom, ptrace_setmem};
+    use randmockery::{intercept_syscalls, getrandom, ptrace_setmem};
     use randmockery::syscall_override::OverrideRegistry;
 
     use std::process::Command;
@@ -15,12 +15,11 @@ mod tests {
         F: 'static + FnMut() -> u8,
     {
         let mut reg = OverrideRegistry::new();
-        // FIXME weird formatting
-        // FIXME 'static is too much
-        reg.add(syscall_table::getrandom, getrandom::atenter, move |pid,
-              data| {
-            ptrace_setmem(pid, data, &mut gen)
-        });
+        reg.add(
+            getrandom::SYSCALL_NO,
+            getrandom::atenter,
+            move |pid, data| ptrace_setmem(pid, data, &mut gen),
+        );
 
         let exitcode = intercept_syscalls(Command::new(command), reg);
         assert_eq!(exitcode, expected_exitcode);
