@@ -5,8 +5,9 @@ extern crate rand;
 
 #[cfg(test)]
 mod tests {
-    use randmockery::{intercept_syscalls, getrandom, ptrace_setmem};
+    use randmockery::{intercept_syscalls, ptrace_setmem};
     use randmockery::syscall_override::OverrideRegistry;
+    use randmockery::syscall_override::getrandom;
 
     use std::process::Command;
 

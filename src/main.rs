@@ -1,7 +1,8 @@
 extern crate randmockery;
 
-use randmockery::{parse_args, intercept_syscalls, getrandom};
+use randmockery::{parse_args, intercept_syscalls};
 use randmockery::syscall_override::OverrideRegistry;
+use randmockery::syscall_override::getrandom;
 
 extern crate rand;
 

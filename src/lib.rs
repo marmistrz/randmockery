@@ -8,8 +8,6 @@ use nix::unistd::Pid;
 mod ptrace_mod;
 pub mod syscall_override;
 
-pub mod getrandom;
-
 use syscall_override::{OverrideRegistry, HandlerData};
 
 /// if the process has finished: return its exit code

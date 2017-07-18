@@ -2,6 +2,8 @@ extern crate nix;
 
 use nix::unistd::Pid;
 
+pub mod getrandom;
+
 type SyscallNo = i64;
 pub struct HandlerData {
     pub bufptr: usize,
