@@ -1,5 +1,7 @@
 extern crate nix;
 extern crate rand;
+#[macro_use]
+extern crate enum_extract;
 
 use std::process::Command;
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -12,7 +14,7 @@ use syscall_override::{OverrideRegistry, HandlerData};
 
 /// if the process has finished: return its exit code
 fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
-    match waitpid(pid, None) {
+    match waitpid(pid, None) { 
         // TODO use PTRACE_O_TRACESYSGOOD
         // See this pull request: https://github.com/nix-rust/nix/pull/566
         Ok(WaitStatus::Exited(_, code)) => {
@@ -64,8 +66,15 @@ where
     use std::mem;
 
     let step = mem::size_of::<usize>();
-    let ptr = data.bufptr;
-    let len = data.buflen;
+
+    let_extract!(
+        HandlerData::Buffer {
+            bufptr: ptr,
+            buflen: len,
+        },
+        data,
+        panic!("Mismatched HandlerData variant")
+    );
 
     let end = ptr + len;
     let mut curr = ptr;

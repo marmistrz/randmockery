@@ -23,7 +23,7 @@ fn random_byte() -> u8 {
 }
 
 pub fn atenter(pid: Pid) -> HandlerData {
-    HandlerData {
+    HandlerData::Buffer {
         bufptr: ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize,
         buflen: ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize,
     }

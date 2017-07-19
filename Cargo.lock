@@ -2,6 +2,7 @@
 name = "randmockery"
 version = "0.1.0"
 dependencies = [
+ "enum_extract 0.1.0 (git+https://github.com/marmistrz/enum_extract)",
  "nix 0.9.0-pre (git+https://github.com/nix-rust/nix)",
  "rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "spawn-ptrace 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -21,6 +22,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "cfg-if"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "enum_extract"
+version = "0.1.0"
+source = "git+https://github.com/marmistrz/enum_extract#f04138934f8eea24b3e0f74e31d7d52d7a24dd51"
 
 [[package]]
 name = "getopts"
@@ -120,6 +126,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum bitflags 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8dead7461c1127cf637931a1e50934eb6eee8bff2f74433ac7909e9afcee04a3"
 "checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
 "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
+"checksum enum_extract 0.1.0 (git+https://github.com/marmistrz/enum_extract)" = "<none>"
 "checksum getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)" = "d9047cfbd08a437050b363d35ef160452c5fe8ea5187ae0a624708c91581d685"
 "checksum libc 0.2.26 (registry+https://github.com/rust-lang/crates.io-index)" = "30885bcb161cf67054244d10d4a7f4835ffd58773bc72e07d35fecf472295503"
 "checksum nix 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a0d95c5fa8b641c10ad0b8887454ebaafa3c92b5cd5350f8fc693adafd178e7b"

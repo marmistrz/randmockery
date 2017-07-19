@@ -63,6 +63,13 @@ pub fn peekuser(pid: Pid, reg: Register) -> nix::Result<c_long> {
     ptrace(PTRACE_PEEKUSER, pid, reg_arg, ptr::null_mut())
 }
 
+/// Makes the `PTRACE_PEEKUSER` request to ptrace
+pub fn pokeuser(pid: Pid, reg: Register, val: u64) -> nix::Result<()> {
+    let reg_arg = (reg as u64) as *mut c_void;
+    ptrace(PTRACE_POKEUSER, pid, reg_arg, val as *mut c_void).map(|_| ()) // ignore the useless return value
+}
+
+
 /// Makes the `PTRACE_PEEKDATA` request to ptrace
 pub fn peekdata(pid: Pid, addr: usize) -> nix::Result<c_long> {
     ptrace(PTRACE_PEEKDATA, pid, addr as *mut c_void, ptr::null_mut())

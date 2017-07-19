@@ -3,11 +3,14 @@ extern crate nix;
 use nix::unistd::Pid;
 
 pub mod getrandom;
+pub mod time;
 
 type SyscallNo = i64;
-pub struct HandlerData {
-    pub bufptr: usize,
-    pub buflen: usize,
+
+// FIXME time doesn't need that
+pub enum HandlerData {
+    Buffer { bufptr: usize, buflen: usize },
+    None,
 }
 
 pub struct SyscallOverride {
@@ -52,7 +55,7 @@ mod tests {
     fn test_registry() {
         let mut reg = OverrideRegistry::new();
         let atenter = |_| {
-            HandlerData {
+            HandlerData::Buffer {
                 buflen: 0,
                 bufptr: 0,
             }
@@ -62,7 +65,10 @@ mod tests {
         reg.add(17, atenter, atexit);
         let el = reg.find(17).unwrap();
         assert_eq!(el.syscall, 17);
-        let len = (el.atenter)(Pid::from_raw(17)).buflen;
+        let len = match (el.atenter)(Pid::from_raw(17)) {
+            HandlerData::Buffer { buflen, bufptr } => buflen,
+            _ => panic!(),
+        };
         assert_eq!(len, 0);
     }
 }
