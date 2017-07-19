@@ -34,10 +34,6 @@ pub fn atexit(pid: Pid, _: HandlerData) {
     ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64).unwrap()
 }
 
-// TODO use the libc constant when it gets merged
-// see:
-pub const SYSCALL_NO: i32 = libc::SYS_time;
-
 #[cfg(test)]
 mod tests {
     use super::*;

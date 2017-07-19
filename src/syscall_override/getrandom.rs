@@ -33,7 +33,3 @@ pub fn atenter(pid: Pid) -> HandlerData {
 pub fn atexit(pid: Pid, data: HandlerData) {
     ptrace_setmem(pid, data, &mut random_byte);
 }
-
-// TODO use the libc constant when it gets merged
-// see:
-pub const SYSCALL_NO: i32 = libc::SYS_getrandom;

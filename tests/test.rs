@@ -1,6 +1,7 @@
 extern crate randmockery;
 extern crate nix;
 extern crate rand;
+extern crate libc;
 
 
 #[cfg(test)]
@@ -17,7 +18,7 @@ mod tests {
     {
         let mut reg = OverrideRegistry::new();
         reg.add(
-            getrandom::SYSCALL_NO,
+            ::libc::SYS_getrandom,
             getrandom::atenter,
             move |pid, data| ptrace_setmem(pid, data, &mut gen),
         );
@@ -40,4 +41,7 @@ mod tests {
 
         test_instance("tests/getrandom-test-mocked", 0, gen);
     }
+
+    #[test]
+    fn test_logical_time() {}
 }
