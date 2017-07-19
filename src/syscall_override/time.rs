@@ -5,6 +5,7 @@
 //! This takes care of both getrandom(2) and getentropy(2) system calls since both of them use
 //! the sys_getrandom syscall.
 extern crate nix;
+extern crate libc;
 
 use nix::unistd::Pid;
 use syscall_override::HandlerData;
@@ -35,7 +36,7 @@ pub fn atexit(pid: Pid, _: HandlerData) {
 
 // TODO use the libc constant when it gets merged
 // see:
-pub const SYSCALL_NO: i64 = 318;
+pub const SYSCALL_NO: i32 = libc::SYS_time;
 
 #[cfg(test)]
 mod tests {

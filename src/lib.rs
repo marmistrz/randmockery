@@ -14,7 +14,7 @@ use syscall_override::{OverrideRegistry, HandlerData};
 
 /// if the process has finished: return its exit code
 fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
-    match waitpid(pid, None) { 
+    match waitpid(pid, None) {
         // TODO use PTRACE_O_TRACESYSGOOD
         // See this pull request: https://github.com/nix-rust/nix/pull/566
         Ok(WaitStatus::Exited(_, code)) => {
@@ -127,7 +127,7 @@ pub fn intercept_syscalls(command: Command, mut reg: OverrideRegistry) -> i8 {
     loop {
         // detect enter, get syscall no
         wait_sigtrap!(pid);
-        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap() as i32;
         let ovride = reg.find(no);
 
         if ovride.is_none() {

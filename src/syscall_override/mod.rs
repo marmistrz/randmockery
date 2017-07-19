@@ -5,7 +5,7 @@ use nix::unistd::Pid;
 pub mod getrandom;
 pub mod time;
 
-type SyscallNo = i64;
+type SyscallNo = i32;
 
 pub enum HandlerData {
     Buffer { bufptr: usize, buflen: usize },

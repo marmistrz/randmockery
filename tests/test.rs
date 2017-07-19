@@ -28,26 +28,12 @@ mod tests {
 
     #[test]
     fn constant_gen() {
-
-        let status = Command::new("make")
-            .args(&["-C", "tests", "getrandom-test"])
-            .status()
-            .unwrap();
-        assert!(status.success());
-
-
         test_instance("tests/getrandom-test", 0, || 0);
         test_instance("tests/getrandom-test", 1, || 8);
     }
 
     #[test]
     fn random_gen() {
-        let status = Command::new("make")
-            .args(&["-C", "tests", "getrandom-test-mocked"])
-            .status()
-            .unwrap();
-        assert!(status.success());
-
         use rand::{StdRng, SeedableRng, Rng};
         let mut rng = StdRng::from_seed(&[1, 2, 3, 4]);
         let gen = move || rng.gen::<u8>();

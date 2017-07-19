@@ -4,6 +4,7 @@
 //! the sys_getrandom syscall.
 extern crate nix;
 extern crate rand;
+extern crate libc;
 
 use nix::unistd::Pid;
 
@@ -35,4 +36,4 @@ pub fn atexit(pid: Pid, data: HandlerData) {
 
 // TODO use the libc constant when it gets merged
 // see:
-pub const SYSCALL_NO: i64 = 318;
+pub const SYSCALL_NO: i32 = libc::SYS_getrandom;
