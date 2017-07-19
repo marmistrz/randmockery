@@ -7,7 +7,6 @@ pub mod time;
 
 type SyscallNo = i64;
 
-// FIXME time doesn't need that
 pub enum HandlerData {
     Buffer { bufptr: usize, buflen: usize },
     None,
@@ -66,7 +65,7 @@ mod tests {
         let el = reg.find(17).unwrap();
         assert_eq!(el.syscall, 17);
         let len = match (el.atenter)(Pid::from_raw(17)) {
-            HandlerData::Buffer { buflen, bufptr } => buflen,
+            HandlerData::Buffer { buflen, .. } => buflen,
             _ => panic!(),
         };
         assert_eq!(len, 0);

@@ -1,7 +1,7 @@
 [package]
 name = "randmockery"
 version = "0.1.0"
-authors = ["Marcin Mielniczuk <marmistrz.dev@gmail.com>"]
+authors = ["Marcin Mielniczuk <marmistrz.dev@zoho.eu>"]
 
 [dependencies]
 # NOTE we'll use the git versoin
