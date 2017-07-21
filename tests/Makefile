@@ -1,5 +1,6 @@
 CFLAGS ?= -Wall -Wextra -O2
-all: getrandom-test getrandom-test-mocked
+BINS = getrandom-test getrandom-test-mocked time-test
+all: $(BINS)
 clean:
-	rm -f getrandom-test getrandom-test-mocked
+	rm -f $(BINS)
 .PHONY: clean all

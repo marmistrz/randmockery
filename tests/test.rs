@@ -8,11 +8,11 @@ extern crate libc;
 mod tests {
     use randmockery::{intercept_syscalls, ptrace_setmem};
     use randmockery::syscall_override::OverrideRegistry;
-    use randmockery::syscall_override::getrandom;
+    use randmockery::syscall_override::{getrandom, time};
 
     use std::process::Command;
 
-    fn test_instance<F>(command: &str, expected_exitcode: i8, mut gen: F)
+    fn test_getrandom<F>(command: &str, expected_exitcode: i8, mut gen: F)
     where
         F: 'static + FnMut() -> u8,
     {
@@ -29,8 +29,8 @@ mod tests {
 
     #[test]
     fn constant_gen() {
-        test_instance("tests/getrandom-test", 0, || 0);
-        test_instance("tests/getrandom-test", 1, || 8);
+        test_getrandom("tests/getrandom-test", 0, || 0);
+        test_getrandom("tests/getrandom-test", 1, || 8);
     }
 
     #[test]
@@ -39,9 +39,15 @@ mod tests {
         let mut rng = StdRng::from_seed(&[1, 2, 3, 4]);
         let gen = move || rng.gen::<u8>();
 
-        test_instance("tests/getrandom-test-mocked", 0, gen);
+        test_getrandom("tests/getrandom-test-mocked", 0, gen);
     }
 
     #[test]
-    fn test_logical_time() {}
+    fn test_logical_time() {
+        let mut reg = OverrideRegistry::new();
+        reg.add(::libc::SYS_time, time::atenter, time::atexit);
+
+        let exitcode = intercept_syscalls(Command::new("tests/time-test"), reg);
+        assert_eq!(exitcode, 0);
+    }
 }

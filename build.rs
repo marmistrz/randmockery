@@ -9,13 +9,7 @@ fn main() {
     assert!(status.success());
 
     let status = Command::new("make")
-        .args(&["-C", "tests", "getrandom-test"])
-        .status()
-        .unwrap();
-    assert!(status.success());
-
-    let status = Command::new("make")
-        .args(&["-C", "tests", "getrandom-test-mocked"])
+        .args(&["-C", "tests"])
         .status()
         .unwrap();
     assert!(status.success());
