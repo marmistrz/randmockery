@@ -3,6 +3,8 @@ extern crate rand;
 #[macro_use]
 extern crate enum_extract;
 extern crate libloading;
+#[macro_use]
+extern crate clap;
 
 use std::process::Command;
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -10,6 +12,7 @@ use nix::unistd::Pid;
 
 mod ptrace_mod;
 pub mod syscall_override;
+pub mod args;
 
 use syscall_override::{OverrideRegistry, HandlerData};
 

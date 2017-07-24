@@ -2,17 +2,22 @@ extern crate randmockery;
 extern crate libc;
 extern crate rand;
 
-use randmockery::{parse_args, intercept_syscalls, spawn_child};
+use randmockery::{intercept_syscalls, spawn_child, args};
 use randmockery::syscall_override::OverrideRegistry;
 use randmockery::syscall_override::{getrandom, time};
 
 use std::process::Command;
 
 fn main() {
-    let args = parse_args();
-    println!("Executing binary: {}", args[0]);
-    let mut command = Command::new(&args[0]);
-    command.args(&args[1..]);
+    let matches = args::get_parser().get_matches();
+
+    let mut cmd = matches.values_of("command").unwrap();
+    let prog = cmd.next().unwrap();
+    let args: Vec<&str> = cmd.collect();
+
+    println!("Executing binary: {}", prog);
+    let mut command = Command::new(prog);
+    command.args(&args);
 
     let mut reg = OverrideRegistry::new();
 
