@@ -1,12 +1,28 @@
 extern crate randmockery;
 extern crate libc;
 extern crate rand;
+extern crate libloading;
 
 use randmockery::{intercept_syscalls, spawn_child, args};
 use randmockery::syscall_override::OverrideRegistry;
 use randmockery::syscall_override::{getrandom, time};
 
 use std::process::Command;
+
+trait InjectLib {
+    fn inject_lib(&mut self, &str);
+}
+
+impl InjectLib for Command {
+    fn inject_lib(&mut self, lib: &str) {
+        use std::os::unix::process::CommandExt;
+        let lib_s = String::from(lib);
+        self.before_exec(move || match libloading::Library::new(&lib_s) {
+            Err(err) => panic!("Error loading library: {}", err),
+            Ok(_) => Ok(()),
+        });
+    }
+}
 
 fn main() {
     let matches = args::get_parser().get_matches();
@@ -18,6 +34,12 @@ fn main() {
     println!("Executing binary: {}", prog);
     let mut command = Command::new(prog);
     command.args(&args);
+
+    if let Some(libs) = matches.values_of("library") {
+        for lib in libs {
+            command.inject_lib(lib);
+        }
+    }
 
     let mut reg = OverrideRegistry::new();
 
