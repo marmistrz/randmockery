@@ -2,7 +2,7 @@ extern crate randmockery;
 extern crate libc;
 extern crate rand;
 
-use randmockery::{parse_args, intercept_syscalls};
+use randmockery::{parse_args, intercept_syscalls, spawn_child};
 use randmockery::syscall_override::OverrideRegistry;
 use randmockery::syscall_override::{getrandom, time};
 
@@ -19,7 +19,8 @@ fn main() {
     reg.add(libc::SYS_getrandom, getrandom::atenter, getrandom::atexit);
     reg.add(libc::SYS_time, time::atenter, time::atexit);
 
-    let exitcode = intercept_syscalls(command, reg);
+    let pid = spawn_child(command);
+    let exitcode = intercept_syscalls(pid, reg);
 
     std::process::exit(exitcode as i32);
 }

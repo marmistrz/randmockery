@@ -43,7 +43,7 @@ pub fn parse_args() -> Vec<String> {
     command
 }
 
-fn spawn_child(mut command: Command) -> Pid {
+pub fn spawn_child(mut command: Command) -> Pid {
     use ptrace_mod::PtraceSpawnable;
     // use std::os::unix::process::CommandExt;
 
@@ -124,9 +124,7 @@ where
 }
 
 /// Return value: exitcode
-pub fn intercept_syscalls(command: Command, mut reg: OverrideRegistry) -> i8 {
-    let pid = spawn_child(command);
-
+pub fn intercept_syscalls(pid: Pid, mut reg: OverrideRegistry) -> i8 {
     wait_sigtrap!(pid); // there will be an initial stop after traceme, ignore it
     ptrace_mod::syscall(pid).unwrap(); // wait for another
 

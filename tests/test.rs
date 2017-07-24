@@ -6,7 +6,7 @@ extern crate libc;
 
 #[cfg(test)]
 mod tests {
-    use randmockery::{intercept_syscalls, ptrace_setmem};
+    use randmockery::{intercept_syscalls, ptrace_setmem, spawn_child};
     use randmockery::syscall_override::OverrideRegistry;
     use randmockery::syscall_override::{getrandom, time};
 
@@ -23,7 +23,8 @@ mod tests {
             move |pid, data| ptrace_setmem(pid, data, &mut gen),
         );
 
-        let exitcode = intercept_syscalls(Command::new(command), reg);
+        let pid = spawn_child(Command::new(command));
+        let exitcode = intercept_syscalls(pid, reg);
         assert_eq!(exitcode, expected_exitcode);
     }
 
@@ -47,7 +48,8 @@ mod tests {
         let mut reg = OverrideRegistry::new();
         reg.add(::libc::SYS_time, time::atenter, time::atexit);
 
-        let exitcode = intercept_syscalls(Command::new("tests/time-test"), reg);
+        let pid = spawn_child(Command::new("tests/time-test"));
+        let exitcode = intercept_syscalls(pid, reg);
         assert_eq!(exitcode, 0);
     }
 }
