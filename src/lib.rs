@@ -2,6 +2,7 @@ extern crate nix;
 extern crate rand;
 #[macro_use]
 extern crate enum_extract;
+extern crate libloading;
 
 use std::process::Command;
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -44,10 +45,15 @@ pub fn parse_args() -> Vec<String> {
 
 fn spawn_child(mut command: Command) -> Pid {
     use ptrace_mod::PtraceSpawnable;
+    // use std::os::unix::process::CommandExt;
 
-    let child = command.spawn_ptrace().expect(
-        "Error spawning the child process",
-    );
+    let child = command
+        /*.before_exec(|| {
+            libloading::Library::new("/tmp/libxd.so").expect("Failed loading the patch library");
+            Ok(())
+        })*/
+        .spawn_ptrace()
+        .expect("Error spawning the child process");
 
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
