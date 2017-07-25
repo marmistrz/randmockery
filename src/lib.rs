@@ -134,7 +134,7 @@ pub fn intercept_syscalls(pid: Pid, mut reg: OverrideRegistry) -> i8 {
     loop {
         // detect enter, get syscall no
         wait_sigtrap!(pid);
-        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap() as i32;
+        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
         let ovride = reg.find(no);
 
         if ovride.is_none() {
