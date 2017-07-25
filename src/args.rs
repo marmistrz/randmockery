@@ -13,9 +13,15 @@ pub fn get_parser<'a, 'b>() -> App<'a, 'b> {
                 .required(false)
                 .takes_value(true)
                 .multiple(true)
-                .number_of_values(1),
+                .number_of_values(1)
+                .help("Adds a library to be injected"),
         )
-        .arg(Arg::with_name("command").multiple(true).required(true))
+        .arg(
+            Arg::with_name("command")
+                .multiple(true)
+                .required(true)
+                .help("The command to be executed"),
+        )
 }
 
 #[cfg(test)]
