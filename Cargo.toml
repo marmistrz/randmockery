@@ -7,7 +7,6 @@ build = "build.rs"
 [dependencies]
 # NOTE we'll use the git versoin
 nix = { git = "https://github.com/nix-rust/nix" } # need struct Pid
-spawn-ptrace = "0.*"
 rand = "0.*"
 enum_extract = "0.1.1"
 libc = { git = "https://github.com/rust-lang/libc" } # need syscall table
