@@ -17,9 +17,12 @@ impl InjectLib for Command {
     fn inject_lib(&mut self, lib: &str) {
         use std::os::unix::process::CommandExt;
         let lib_s = String::from(lib);
-        self.before_exec(move || match libloading::Library::new(&lib_s) {
-            Err(err) => panic!("Error loading library: {}", err),
-            Ok(_) => Ok(()),
+        self.before_exec(move || {
+            println!("Loading library {}", lib_s);
+            match libloading::Library::new(&lib_s) {
+                Err(err) => panic!("Error loading library: {}", err),
+                Ok(_) => Ok(()),
+            }
         });
     }
 }
@@ -35,10 +38,10 @@ fn main() {
     let mut command = Command::new(prog);
     command.args(&args);
 
-    if let Some(libs) = matches.values_of("library") {
-        for lib in libs {
-            command.inject_lib(lib);
-        }
+    if let Some(preloads) = matches.values_of("library") {
+        let ld_preload = preloads.collect::<Vec<_>>().join(":");
+        println!("Setting LD_PRELOAD={}", ld_preload);
+        command.env("LD_PRELOAD", ld_preload);
     }
 
     let mut reg = OverrideRegistry::new();

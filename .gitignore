@@ -4,4 +4,7 @@ getrandom
 .vscode
 getrandom-test
 getrandom-test-mocked
-tests/time-test
+time-test
+time-test-vdso
+*.o
+*.so

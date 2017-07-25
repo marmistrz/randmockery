@@ -52,4 +52,16 @@ mod tests {
         let exitcode = intercept_syscalls(pid, reg);
         assert_eq!(exitcode, 0);
     }
+
+    #[test]
+    fn test_logical_time_vdso() {
+        let mut reg = OverrideRegistry::new();
+        reg.add(::libc::SYS_time, time::atenter, time::atexit);
+
+        let mut cmd = Command::new("tests/time-test-vdso");
+        cmd.env("LD_PRELOAD", "tests/libmocktime.so");
+        let pid = spawn_child(cmd);
+        let exitcode = intercept_syscalls(pid, reg);
+        assert_eq!(exitcode, 0);
+    }
 }
