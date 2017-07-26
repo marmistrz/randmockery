@@ -10,6 +10,10 @@ When the inferior enters or exits a syscall, a user-defined handler is executed.
 This gives us the opportunity to replace the syscall return value/buffer with our
 own data.
 
+## Notes
+Mocking vDSO syscalls is not supported out of the box. You need to preload a library using the `-l` switch.
+An example mocking library is located in the `tests` subdirectory.
+
 ## Benchmarks
 * `cmp file1 file2` on 1.5G files yielded 8x slowdown (this is the pessimistic scenario of an application, which does mostly syscalls)
 * running a compute-only job (calculating `1/(1+x)` using a series for a 1000 values of x with double precision) showed virtually no slowndown
@@ -18,7 +22,6 @@ own data.
 Unfortunately, we depend on `git` versions of some crates:
 
 * nix-rust/nix: we need `struct Pid`
-* rust-lang/libc: we need the system call table
 
 ## upstreaming
 `ptrace_mod.rs` will be upstreamed and is currently under review nix-rust/nix#666
