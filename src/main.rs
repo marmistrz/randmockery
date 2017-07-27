@@ -47,7 +47,12 @@ fn main() {
     let mut reg = OverrideRegistry::new();
 
     reg.add(libc::SYS_getrandom, getrandom::atenter, getrandom::atexit);
-    reg.add(libc::SYS_time, time::atenter, time::atexit);
+    reg.add(libc::SYS_time, time::time_atenter, time::time_atexit);
+    reg.add(
+        libc::SYS_clock_gettime,
+        time::clock_gettime_atenter,
+        time::clock_gettime_atexit,
+    );
 
     let pid = spawn_child(command);
     let exitcode = intercept_syscalls(pid, reg);

@@ -1,5 +1,5 @@
 CFLAGS ?= -Wall -Wextra -O2
-BINS = getrandom-test getrandom-test-mocked time-test time-test-vdso
+BINS = getrandom-test getrandom-test-mocked time-test time-test-vdso clock_gettime-test
 all: $(BINS) libmocktime.so
 clean:
 	rm -f $(BINS)

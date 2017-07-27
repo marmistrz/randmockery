@@ -1,6 +1,7 @@
 extern crate nix;
 
 use nix::unistd::Pid;
+use nix::libc;
 
 pub mod getrandom;
 pub mod time;
@@ -9,6 +10,7 @@ type SyscallNo = i64;
 
 pub enum HandlerData {
     Buffer { bufptr: usize, buflen: usize },
+    Timespec(*mut libc::timespec),
     None,
 }
 

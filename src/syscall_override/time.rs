@@ -5,11 +5,11 @@
 //! This takes care of both getrandom(2) and getentropy(2) system calls since both of them use
 //! the sys_getrandom syscall.
 extern crate nix;
-extern crate libc;
 
 use nix::unistd::Pid;
 use syscall_override::HandlerData;
 use ptrace_mod;
+use nix::libc;
 
 fn logical_time() -> i64 {
     use std::cell::RefCell;
@@ -26,12 +26,35 @@ fn logical_time() -> i64 {
     })
 }
 
-pub fn atenter(_: Pid) -> HandlerData {
+pub fn time_atenter(_: Pid) -> HandlerData {
     HandlerData::None {}
 }
 
-pub fn atexit(pid: Pid, _: HandlerData) {
+pub fn time_atexit(pid: Pid, _: HandlerData) {
     ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64).unwrap()
+}
+
+pub fn clock_gettime_atenter(pid: Pid) -> HandlerData {
+    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as *mut libc::timespec;
+    HandlerData::Timespec(ptr)
+}
+
+pub fn clock_gettime_atexit(pid: Pid, data: HandlerData) {
+    use std::mem;
+    use ptrace_setmem;
+
+    let_extract!(
+        HandlerData::Timespec(ptr),
+        data,
+        panic!("Mismatched HandlerData variant")
+    );
+    let buffer = HandlerData::Buffer {
+        bufptr: ptr as usize,
+        buflen: mem::size_of::<libc::timespec>(),
+    };
+
+    ptrace_setmem(pid, buffer, &mut || 0)
+
 }
 
 #[cfg(test)]
