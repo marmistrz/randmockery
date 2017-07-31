@@ -8,6 +8,11 @@ pub mod time;
 
 type SyscallNo = i64;
 
+pub struct OverrideData {
+    pub syscall_no: SyscallNo,
+    pub data: HandlerData,
+}
+
 pub enum HandlerData {
     Buffer { bufptr: usize, buflen: usize },
     Timespec(*mut libc::timespec),
