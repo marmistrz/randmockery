@@ -7,7 +7,7 @@ extern crate libloading;
 extern crate clap;
 
 use std::process::Command;
-use nix::sys::wait::{waitpid, WaitStatus};
+use nix::sys::wait::{wait, WaitStatus};
 use nix::unistd::Pid;
 
 mod ptrace_mod;
@@ -15,21 +15,6 @@ pub mod syscall_override;
 pub mod args;
 
 use syscall_override::{OverrideRegistry, HandlerData};
-
-/// if the process has finished: return its exit code
-fn wait_sigtrap_fun(pid: Pid) -> Option<i8> {
-    match waitpid(pid, None) {
-        // TODO use PTRACE_O_TRACESYSGOOD
-        // See this pull request: https://github.com/nix-rust/nix/pull/566
-        Ok(WaitStatus::Exited(_, code)) => {
-            println!("Inferior quit with code {}!", code);
-            Some(code)
-        }
-        Ok(WaitStatus::Stopped(_, nix::sys::signal::Signal::SIGTRAP)) => None,
-        Ok(s) => panic!("Unexpected stop reason: {:?}", s),
-        Err(e) => panic!("Unexpected waitpid error: {:?}", e),
-    }
-}
 
 pub fn parse_args() -> Vec<String> {
     use std::env;
@@ -57,10 +42,19 @@ pub fn spawn_child(mut command: Command) -> Pid {
 }
 
 macro_rules! wait_sigtrap {
-    ($pid:ident) => (match wait_sigtrap_fun($pid) {
-        None => {},
-        Some(x) => return x
-    })
+    () => {
+        match wait() {
+            // TODO use PTRACE_O_TRACESYSGOOD
+            // See this pull request: https://github.com/nix-rust/nix/pull/566
+            Ok(WaitStatus::Exited(_, code)) => {
+                println!("Inferior quit with code {}!", code);
+                return code;
+            }
+            Ok(WaitStatus::Stopped(pid, nix::sys::signal::Signal::SIGTRAP)) => pid,
+            Ok(s) => panic!("Unexpected stop reason: {:?}", s),
+            Err(e) => panic!("Unexpected waitpid error: {:?}", e),
+        }
+    }
 }
 
 pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
@@ -122,25 +116,31 @@ where
 }
 
 /// Return value: exitcode
-pub fn intercept_syscalls(pid: Pid, mut reg: OverrideRegistry) -> i8 {
-    wait_sigtrap!(pid); // there will be an initial stop after traceme, ignore it
-    ptrace_mod::syscall(pid).unwrap(); // wait for another
+pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
+    // TODO waitpid here?
+    let initial_pid = wait_sigtrap!(); // there will be an initial stop after traceme, ignore it
+    assert_eq!(
+        root_pid,
+        initial_pid,
+        "First SIGTRAP was from another process than the root PID"
+    );
+    ptrace_mod::syscall(initial_pid).unwrap(); // wait for another
 
     loop {
         // detect enter, get syscall no
-        wait_sigtrap!(pid);
+        let pid = wait_sigtrap!();
         let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
         let ovride = reg.find(no);
 
         if ovride.is_none() {
             ptrace_mod::syscall(pid).unwrap(); // ask for exit
-            wait_sigtrap!(pid); // wait for exit
+            wait_sigtrap!(); // wait for exit
         } else {
             let ovride = ovride.unwrap();
             let data = (ovride.atenter)(pid);
 
             ptrace_mod::syscall(pid).unwrap(); // wait for another
-            wait_sigtrap!(pid); // wait for exit
+            wait_sigtrap!(); // wait for exit
 
             let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
             if ret < 0 {
