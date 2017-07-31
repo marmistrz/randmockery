@@ -7,7 +7,6 @@ extern crate libloading;
 extern crate clap;
 
 use std::process::Command;
-use nix::sys::signal::Signal;
 use nix::sys::wait::{wait, WaitStatus};
 use nix::unistd::Pid;
 
@@ -42,16 +41,18 @@ pub fn spawn_child(mut command: Command) -> Pid {
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
 
+// TODO remove the logging
 macro_rules! wait_sigtrap {
     () => {
         match wait() {
-            // TODO use PTRACE_O_TRACESYSGOOD
-            // See this pull request: https://github.com/nix-rust/nix/pull/566
             Ok(WaitStatus::Exited(_, code)) => {
                 println!("Inferior quit with code {}!", code);
                 return code;
             }
-            Ok(WaitStatus::Stopped(pid, Signal::SIGTRAP)) => pid,
+            Ok(WaitStatus::PtraceSyscall(pid)) => {
+                println!("{:?}", WaitStatus::PtraceSyscall(pid));
+                pid
+            }
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
             Err(e) => panic!("Unexpected waitpid error: {:?}", e),
         }
@@ -119,24 +120,19 @@ where
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     use std::collections::HashMap;
+    use nix::sys::ptrace;
+    use nix::sys::signal::Signal;
+
     let mut map: HashMap<Pid, Option<OverrideData>> = HashMap::new();
 
-    // TODO waitpid here?
-    let initial_pid = wait_sigtrap!(); // there will be an initial stop after traceme, ignore it
-    assert_eq!(
-        root_pid,
-        initial_pid,
-        "First SIGTRAP was raised from another process than the root PID"
-    );
-    ptrace_mod::syscall(initial_pid).unwrap(); // wait for another
+    ptrace::setoptions(root_pid, ptrace::ptrace::PTRACE_O_TRACESYSGOOD).unwrap();
+
+    assert_eq!(wait(), Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)));
+    ptrace_mod::syscall(root_pid).unwrap(); // wait for another
 
     loop {
         // detect enter, get syscall no
         let pid = wait_sigtrap!();
-        if pid != root_pid {
-            continue; // for the time being
-        }
-
         let entry = map.entry(pid).or_insert(None);
         match entry.take() {
             None => {
