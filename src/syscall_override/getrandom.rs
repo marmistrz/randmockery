@@ -30,6 +30,6 @@ pub fn atenter(pid: Pid) -> HandlerData {
     }
 }
 
-pub fn atexit(pid: Pid, data: HandlerData) {
+pub fn atexit(pid: Pid, data: &HandlerData) {
     ptrace_setmem(pid, data, &mut random_byte);
 }

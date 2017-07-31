@@ -63,7 +63,7 @@ macro_rules! wait_sigtrap {
     })
 }
 
-pub fn ptrace_setmem<F>(pid: Pid, data: HandlerData, gen: &mut F)
+pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
 where
     F: FnMut() -> u8,
 {
@@ -76,7 +76,7 @@ where
             bufptr: ptr,
             buflen: len,
         },
-        data,
+        *data,
         panic!("Mismatched HandlerData variant")
     );
 
@@ -146,7 +146,7 @@ pub fn intercept_syscalls(pid: Pid, mut reg: OverrideRegistry) -> i8 {
             if ret < 0 {
                 println!("Syscall {} exited with an error, not touching it", no);
             } else {
-                (ovride.atexit)(pid, data);
+                (ovride.atexit)(pid, &data);
             }
         }
 

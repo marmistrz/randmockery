@@ -30,7 +30,7 @@ pub fn time_atenter(_: Pid) -> HandlerData {
     HandlerData::None {}
 }
 
-pub fn time_atexit(pid: Pid, _: HandlerData) {
+pub fn time_atexit(pid: Pid, _: &HandlerData) {
     ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64).unwrap()
 }
 
@@ -39,13 +39,13 @@ pub fn clock_gettime_atenter(pid: Pid) -> HandlerData {
     HandlerData::Timespec(ptr)
 }
 
-pub fn clock_gettime_atexit(pid: Pid, data: HandlerData) {
+pub fn clock_gettime_atexit(pid: Pid, data: &HandlerData) {
     use std::mem;
     use ptrace_setmem;
 
     let_extract!(
         HandlerData::Timespec(ptr),
-        data,
+        *data,
         panic!("Mismatched HandlerData variant")
     );
     let buffer = HandlerData::Buffer {
@@ -53,7 +53,7 @@ pub fn clock_gettime_atexit(pid: Pid, data: HandlerData) {
         buflen: mem::size_of::<libc::timespec>(),
     };
 
-    ptrace_setmem(pid, buffer, &mut || 0)
+    ptrace_setmem(pid, &buffer, &mut || 0)
 
 }
 

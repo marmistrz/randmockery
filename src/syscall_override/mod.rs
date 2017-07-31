@@ -18,7 +18,7 @@ pub struct SyscallOverride {
     /// syscall the override will match
     pub syscall: SyscallNo,
     pub atenter: Box<FnMut(Pid) -> HandlerData>,
-    pub atexit: Box<FnMut(Pid, HandlerData) -> ()>,
+    pub atexit: Box<FnMut(Pid, &HandlerData) -> ()>,
 }
 
 pub struct OverrideRegistry {
@@ -33,7 +33,7 @@ impl OverrideRegistry {
     pub fn add<F, G>(&mut self, syscall: SyscallNo, atenter: F, atexit: G) -> &mut Self
     where
         F: 'static + FnMut(Pid) -> HandlerData,
-        G: 'static + FnMut(Pid, HandlerData) -> (),
+        G: 'static + FnMut(Pid, &HandlerData) -> (),
     {
         self.overrides.push(SyscallOverride {
             syscall: syscall,
@@ -61,7 +61,7 @@ mod tests {
                 bufptr: 0,
             }
         };
-        let atexit = |_, _| {};
+        let atexit = |_, _: &_| {};
 
         reg.add(17, atenter, atexit);
         let el = reg.find(17).unwrap();
