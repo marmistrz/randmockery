@@ -7,14 +7,15 @@ extern crate libloading;
 extern crate clap;
 
 use std::process::Command;
-use nix::sys::wait::{wait, WaitStatus};
+use nix::sys::signal::Signal;
+use nix::sys::wait::{wait, waitpid, WaitStatus};
 use nix::unistd::Pid;
 
 mod ptrace_mod;
 pub mod syscall_override;
 pub mod args;
 
-use syscall_override::{OverrideRegistry, HandlerData};
+use syscall_override::{OverrideRegistry, HandlerData, OverrideData};
 
 pub fn parse_args() -> Vec<String> {
     use std::env;
@@ -50,7 +51,7 @@ macro_rules! wait_sigtrap {
                 println!("Inferior quit with code {}!", code);
                 return code;
             }
-            Ok(WaitStatus::Stopped(pid, nix::sys::signal::Signal::SIGTRAP)) => pid,
+            Ok(WaitStatus::Stopped(pid, Signal::SIGTRAP)) => pid,
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
             Err(e) => panic!("Unexpected waitpid error: {:?}", e),
         }
@@ -117,36 +118,54 @@ where
 
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
+    use std::collections::HashMap;
+    let mut map: HashMap<Pid, Option<OverrideData>> = HashMap::new();
+
     // TODO waitpid here?
-    let initial_pid = wait_sigtrap!(); // there will be an initial stop after traceme, ignore it
-    assert_eq!(
+    // let initial_pid = wait_sigtrap!(); // there will be an initial stop after traceme, ignore it
+    /*assert_eq!(
         root_pid,
         initial_pid,
         "First SIGTRAP was from another process than the root PID"
+    );*/
+    assert_eq!(
+        waitpid(root_pid, None),
+        Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP))
     );
-    ptrace_mod::syscall(initial_pid).unwrap(); // wait for another
+    ptrace_mod::syscall(root_pid).unwrap(); // wait for another
+    println!("Start tracing!");
 
     loop {
         // detect enter, get syscall no
         let pid = wait_sigtrap!();
-        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
-        let ovride = reg.find(no);
+        if pid != root_pid {
+            continue; // for the time being
+        }
 
-        if ovride.is_none() {
-            ptrace_mod::syscall(pid).unwrap(); // ask for exit
-            wait_sigtrap!(); // wait for exit
-        } else {
-            let ovride = ovride.unwrap();
-            let data = (ovride.atenter)(pid);
-
-            ptrace_mod::syscall(pid).unwrap(); // wait for another
-            wait_sigtrap!(); // wait for exit
-
-            let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
-            if ret < 0 {
-                println!("Syscall {} exited with an error, not touching it", no);
-            } else {
-                (ovride.atexit)(pid, &data);
+        let entry = map.entry(pid).or_insert(None);
+        match entry.take() {
+            None => {
+                let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+                if let Some(ovride) = reg.find(no) {
+                    let data = OverrideData {
+                        data: (ovride.atenter)(pid),
+                        syscall_no: no,
+                    };
+                    *entry = Some(data);
+                }
+            }
+            Some(data) => {
+                println!("exit syscall {}", data.syscall_no);
+                let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+                if ret < 0 {
+                    println!(
+                        "Syscall {} exited with an error, not touching it",
+                        data.syscall_no
+                    );
+                } else {
+                    let ovride = reg.find(data.syscall_no).unwrap(); // if this was added to the map, the
+                    (ovride.atexit)(pid, &data.data);
+                }
             }
         }
 

@@ -16,6 +16,7 @@ int main()
 	uint32_t x = VAL;
 	uint32_t y = VAL;
 	syscall(SYS_getrandom, &x, sizeof(x), 0);
+	printf("%d %d", x, y);
 	if (x == 0 && y == VAL) return 0;
 	else return 1;
 }
