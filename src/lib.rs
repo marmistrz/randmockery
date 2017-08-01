@@ -49,8 +49,17 @@ macro_rules! wait_sigtrap {
                 println!("Inferior quit with code {}!", code);
                 return code;
             }
-            Ok(WaitStatus::PtraceSyscall(pid)) => {
-                println!("{:?}", WaitStatus::PtraceSyscall(pid));
+            Ok(WaitStatus::PtraceSyscall(pid)) => pid,
+            Ok(WaitStatus::PtraceEvent(pid, sig, b)) => {
+                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, b));
+                pid
+            }
+            Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
+                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGCHLD));
+                pid
+            }
+            Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
+                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGSTOP));
                 pid
             }
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
@@ -125,9 +134,11 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
 
     let mut map: HashMap<Pid, Option<OverrideData>> = HashMap::new();
 
-    ptrace::setoptions(root_pid, ptrace::ptrace::PTRACE_O_TRACESYSGOOD).unwrap();
+    let flags = ptrace::ptrace::PTRACE_O_TRACESYSGOOD | ptrace::ptrace::PTRACE_O_TRACECLONE |
+        ptrace::ptrace::PTRACE_O_TRACEFORK;
 
     assert_eq!(wait(), Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)));
+    ptrace::setoptions(root_pid, flags).unwrap();
     ptrace_mod::syscall(root_pid).unwrap(); // wait for another
 
     loop {

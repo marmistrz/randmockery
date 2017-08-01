@@ -2,6 +2,7 @@ clock_gettime-test.c
 getrandom-fork-test.c
 getrandom-test-mocked.c
 getrandom-test.c
+getrandom-thread-test.c
 mocktime.c
 time-test-vdso.c
 time-test.c

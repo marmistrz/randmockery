@@ -44,6 +44,15 @@ mod tests {
     }
 
     #[test]
+    fn intercept_forked_children() {
+        use rand::{StdRng, SeedableRng, Rng};
+        let mut rng = StdRng::from_seed(&[1, 2, 3, 4]);
+        let gen = move || rng.gen::<u8>();
+
+        test_getrandom("tests/getrandom-fork-test", 0, gen);
+    }
+
+    #[test]
     fn test_logical_time() {
         let mut reg = OverrideRegistry::new();
         reg.add(::libc::SYS_time, time::time_atenter, time::time_atexit);
