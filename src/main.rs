@@ -9,24 +9,6 @@ use randmockery::syscall_override::{getrandom, time};
 
 use std::process::Command;
 
-trait InjectLib {
-    fn inject_lib(&mut self, &str);
-}
-
-impl InjectLib for Command {
-    fn inject_lib(&mut self, lib: &str) {
-        use std::os::unix::process::CommandExt;
-        let lib_s = String::from(lib);
-        self.before_exec(move || {
-            println!("Loading library {}", lib_s);
-            match libloading::Library::new(&lib_s) {
-                Err(err) => panic!("Error loading library: {}", err),
-                Ok(_) => Ok(()),
-            }
-        });
-    }
-}
-
 fn main() {
     let matches = args::get_parser().get_matches();
 
