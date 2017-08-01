@@ -63,10 +63,10 @@ int main() {
         chkerr(wait(NULL), "wait");
         if (x != X_EXP || child_x != CHILD_X_EXP) {
             printf("Bad x computed:\n"
-                   "parent: %d, child %d\n",
+                   "parent: %u, child %u\n",
                    x, child_x);
             printf("Expected:\n"
-                   "parent: %d, child: %d",
+                   "parent: %u, child: %u\n",
                    X_EXP, CHILD_X_EXP);
             return 1;
         }

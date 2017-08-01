@@ -70,12 +70,12 @@ fn intercept_forked_children() {
     test_getrandom("tests/getrandom-fork-test", 0, gen);
 }
 
-/*#[test]
+#[test]
 fn intercept_threads() {
     get_mutex!();
 
     test_getrandom("tests/getrandom-thread-test", 0, || 0);
-}*/
+}
 
 #[test]
 fn test_logical_time() {

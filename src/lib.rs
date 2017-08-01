@@ -111,7 +111,10 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
         ptrace::ptrace::PTRACE_O_TRACEFORK;
 
     assert_eq!(wait(), Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)));
+
     ptrace::setoptions(root_pid, flags).unwrap();
+    map.insert(root_pid, None);
+
     ptrace_mod::syscall(root_pid).unwrap(); // wait for another
 
     loop {
@@ -127,7 +130,9 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 }
             }
             Ok(WaitStatus::PtraceSyscall(pid)) => {
-                let entry = map.entry(pid).or_insert(None);
+                let entry = map.entry(pid).or_insert_with(
+                    || panic!("Unexpected pid: {}", pid),
+                );
                 match entry.take() {
                     None => {
                         let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
@@ -155,8 +160,8 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 };
                 pid
             }
-            Ok(WaitStatus::PtraceEvent(pid, sig, b)) => {
-                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, b));
+            Ok(WaitStatus::PtraceEvent(pid, sig, event)) => {
+                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, event));
                 pid
             }
             Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
@@ -165,6 +170,8 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
             }
             Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
                 println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGSTOP));
+                // FIXME process may receive SIGSTOP for another reason
+                map.insert(pid, None);
                 pid
             }
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
