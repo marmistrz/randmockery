@@ -41,33 +41,6 @@ pub fn spawn_child(mut command: Command) -> Pid {
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
 
-// TODO remove the logging
-macro_rules! wait_sigtrap {
-    () => {
-        match wait() {
-            Ok(WaitStatus::Exited(_, code)) => {
-                println!("Inferior quit with code {}!", code);
-                return code;
-            }
-            Ok(WaitStatus::PtraceSyscall(pid)) => pid,
-            Ok(WaitStatus::PtraceEvent(pid, sig, b)) => {
-                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, b));
-                pid
-            }
-            Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
-                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGCHLD));
-                pid
-            }
-            Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
-                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGSTOP));
-                pid
-            }
-            Ok(s) => panic!("Unexpected stop reason: {:?}", s),
-            Err(e) => panic!("Unexpected waitpid error: {:?}", e),
-        }
-    }
-}
-
 pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
 where
     F: FnMut() -> u8,
@@ -143,32 +116,55 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
 
     loop {
         // detect enter, get syscall no
-        let pid = wait_sigtrap!();
-        let entry = map.entry(pid).or_insert(None);
-        match entry.take() {
-            None => {
-                let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
-                if let Some(ovride) = reg.find(no) {
-                    let data = OverrideData {
-                        data: (ovride.atenter)(pid),
-                        syscall_no: no,
-                    };
-                    *entry = Some(data);
-                }
+        let pid = match wait() {
+            Ok(WaitStatus::Exited(_, code)) => {
+                println!("Inferior quit with code {}!", code);
+                return code;
             }
-            Some(data) => {
-                let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
-                if ret < 0 {
-                    println!(
-                        "Syscall {} exited with an error, not touching it",
-                        data.syscall_no
-                    );
-                } else {
-                    let ovride = reg.find(data.syscall_no).unwrap(); // if this was added to the map, the
-                    (ovride.atexit)(pid, &data.data);
-                }
+            Ok(WaitStatus::PtraceSyscall(pid)) => {
+                let entry = map.entry(pid).or_insert(None);
+                match entry.take() {
+                    None => {
+                        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+                        if let Some(ovride) = reg.find(no) {
+                            let data = OverrideData {
+                                data: (ovride.atenter)(pid),
+                                syscall_no: no,
+                            };
+                            *entry = Some(data);
+                        }
+                    }
+                    Some(data) => {
+                        let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX)
+                            .unwrap();
+                        if ret < 0 {
+                            println!(
+                                "Syscall {} exited with an error, not touching it",
+                                data.syscall_no
+                            );
+                        } else {
+                            let ovride = reg.find(data.syscall_no).unwrap(); // if this was added to the map, the
+                            (ovride.atexit)(pid, &data.data);
+                        }
+                    }
+                };
+                pid
             }
-        }
+            Ok(WaitStatus::PtraceEvent(pid, sig, b)) => {
+                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, b));
+                pid
+            }
+            Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
+                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGCHLD));
+                pid
+            }
+            Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
+                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGSTOP));
+                pid
+            }
+            Ok(s) => panic!("Unexpected stop reason: {:?}", s),
+            Err(e) => panic!("Unexpected waitpid error: {:?}", e),
+        };
 
         ptrace_mod::syscall(pid).unwrap(); // wait for another
     }

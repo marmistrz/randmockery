@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +23,14 @@ void chkerr(int ret, const char* const desc) {
     }
 }
 
+void sys_chkerr(int ret, const char* const desc) {
+    if (ret < 0) {
+        errno = -ret;
+        perror(desc);
+        exit(EXIT_FAILURE);
+    }
+}
+
 const uint32_t CHILD_X_EXP = 2054147378;
 const uint32_t X_EXP = 182021820;
 
@@ -36,7 +45,7 @@ int main() {
     pid_t pid = fork();
     chkerr(pid, "fork");
     if (pid == 0) {
-        syscall(SYS_getrandom, &x, sizeof(x), 0);
+        sys_chkerr(syscall(SYS_getrandom, &x, sizeof(x), 0), "syscall");
         if (x != CHILD_X_EXP) printf("CHILD: bad x: %u\n", x);
         chkerr(write(write_pipe, &x, sizeof(x)), "write");
         return 0;
@@ -48,7 +57,10 @@ int main() {
         // after he reads from the pipe, the order of calls is deterministic.
         // Otherwise the numbers generated in the two process may be swapped
         // since the parent process is sequential
-        syscall(SYS_getrandom, &x, sizeof(x), 0);
+        sys_chkerr(syscall(SYS_getrandom, &x, sizeof(x), 0), "syscall");
+        // Wait for the child process to exit. If we don't, tests will start to
+        // fail mysteriously
+        chkerr(wait(NULL), "wait");
         if (x != X_EXP || child_x != CHILD_X_EXP) {
             printf("Bad x computed:\n"
                    "parent: %d, child %d\n",
