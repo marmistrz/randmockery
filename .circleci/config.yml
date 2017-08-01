@@ -17,4 +17,4 @@ jobs:
             cargo test
             # If there's a problem with a test using forks/threads, it may
             # not fail at the first time. Run these tests 10 times
-            for _ in {0..9} cargo test --test
+            for _ in {0..9}; do cargo test --test test; done

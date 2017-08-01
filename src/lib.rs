@@ -135,7 +135,11 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 );
                 match entry.take() {
                     None => {
-                        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX).unwrap();
+                        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX)
+                            .expect(&format!(
+                                "Error peeking the system call number from process {}",
+                                pid
+                            ));
                         if let Some(ovride) = reg.find(no) {
                             let data = OverrideData {
                                 data: (ovride.atenter)(pid),
