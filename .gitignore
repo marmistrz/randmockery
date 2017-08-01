@@ -7,3 +7,4 @@ getrandom
 tests/*-test
 tests/*-vdso
 tests/*-test-mocked
+tests/randmockery-tests.creator.user

@@ -117,9 +117,14 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     loop {
         // detect enter, get syscall no
         let pid = match wait() {
-            Ok(WaitStatus::Exited(_, code)) => {
+            Ok(WaitStatus::Exited(pid, code)) => {
                 println!("Inferior quit with code {}!", code);
-                return code;
+                map.remove(&pid);
+                if map.len() > 0 {
+                    continue;
+                } else {
+                    return code;
+                }
             }
             Ok(WaitStatus::PtraceSyscall(pid)) => {
                 let entry = map.entry(pid).or_insert(None);

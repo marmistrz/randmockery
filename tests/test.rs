@@ -68,7 +68,13 @@ fn intercept_forked_children() {
     let gen = move || rng.gen::<u8>();
 
     test_getrandom("tests/getrandom-fork-test", 0, gen);
-    Command::new("ps").arg("axfww").status().unwrap();
+}
+
+#[test]
+fn intercept_threads() {
+    get_mutex!();
+
+    test_getrandom("tests/getrandom-thread-test", 0, || 0);
 }
 
 #[test]
@@ -86,7 +92,6 @@ fn test_logical_time() {
 #[test]
 fn test_logical_time_vdso() {
     get_mutex!();
-    Command::new("ps").arg("axfww").status().unwrap();
 
     let mut reg = OverrideRegistry::new();
     reg.add(::libc::SYS_time, time::time_atenter, time::time_atexit);
@@ -100,7 +105,6 @@ fn test_logical_time_vdso() {
 
 #[test]
 fn test_clock_gettime() {
-    return; // FIXME
     get_mutex!();
 
     let mut reg = OverrideRegistry::new();

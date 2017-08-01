@@ -16,12 +16,17 @@
 #endif
 
 int main() {
-#pragma omp parallel
+    int ret = 0;
+    #pragma omp parallel
     {
         uint32_t x = VAL;
         syscall(SYS_getrandom, &x, sizeof(x), 0);
-        printf("%u %u\n", omp_get_thread_num(), x);
+        if (x != 0) {
+            printf("Thread %u: incorrect x: %u", omp_get_thread_num(), x);
+            #pragma omp atomic write
+            ret = 1;
+        }
     }
 
-    return 0;
+    return ret;
 }

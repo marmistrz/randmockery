@@ -16,16 +16,16 @@
 #define SYS_getrandom 318
 #endif
 
-void chkerr(int ret, const char* const desc) {
+void chkerr(int64_t ret, const char* const desc) {
     if (ret < 0) {
         perror(desc);
         exit(EXIT_FAILURE);
     }
 }
 
-void sys_chkerr(int ret, const char* const desc) {
+void sys_chkerr(int64_t ret, const char* const desc) {
     if (ret < 0) {
-        errno = -ret;
+        errno = (int) -ret;
         perror(desc);
         exit(EXIT_FAILURE);
     }
