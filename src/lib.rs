@@ -42,64 +42,6 @@ pub fn spawn_child(mut command: Command) -> Pid {
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
 
-pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
-where
-    F: FnMut() -> u8,
-{
-    use std::mem;
-
-    let step = mem::size_of::<usize>();
-
-    let_extract!(
-        HandlerData::Buffer {
-            bufptr: ptr,
-            buflen: len,
-        },
-        *data,
-        panic!("Mismatched HandlerData variant")
-    );
-
-    let end = ptr + len;
-    let mut curr = ptr;
-    let mut next = curr + step;
-
-    {
-        let mut genword = || -> u64 {
-            let mut word: [u8; 8] = [0; 8];
-            for x in word.iter_mut() {
-                *x = gen();
-            }
-
-            unsafe { mem::transmute(word) }
-        };
-
-        while next < end {
-            ptrace_mod::pokedata(pid, curr, genword()).expect(
-                "Error changing the child process memory",
-            );
-            curr += step;
-            next += step;
-        }
-    }
-
-
-    let lastword = ptrace_mod::peekdata(pid, curr).expect("Error peeking the child process memory");
-    let numzero = end - curr;
-    let newword: u64;
-
-    unsafe {
-        let mut bytes: [u8; 8] = mem::transmute(lastword);
-        for i in 0..numzero {
-            bytes[i] = gen();
-        }
-        newword = mem::transmute(bytes);
-    }
-
-    ptrace_mod::pokedata(pid, curr, newword).expect(
-        "Error changing the child process memory (last, incomplete bytes)",
-    );
-}
-
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     use std::collections::HashMap;
@@ -192,4 +134,62 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
             Err(e) => panic!("ptrace error: {}", e),
         }
     }
+}
+
+pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
+where
+    F: FnMut() -> u8,
+{
+    use std::mem;
+
+    let step = mem::size_of::<usize>();
+
+    let_extract!(
+        HandlerData::Buffer {
+            bufptr: ptr,
+            buflen: len,
+        },
+        *data,
+        panic!("Mismatched HandlerData variant")
+    );
+
+    let end = ptr + len;
+    let mut curr = ptr;
+    let mut next = curr + step;
+
+    {
+        let mut genword = || -> u64 {
+            let mut word: [u8; 8] = [0; 8];
+            for x in word.iter_mut() {
+                *x = gen();
+            }
+
+            unsafe { mem::transmute(word) }
+        };
+
+        while next < end {
+            ptrace_mod::pokedata(pid, curr, genword()).expect(
+                "Error changing the child process memory",
+            );
+            curr += step;
+            next += step;
+        }
+    }
+
+
+    let lastword = ptrace_mod::peekdata(pid, curr).expect("Error peeking the child process memory");
+    let numzero = end - curr;
+    let newword: u64;
+
+    unsafe {
+        let mut bytes: [u8; 8] = mem::transmute(lastword);
+        for i in 0..numzero {
+            bytes[i] = gen();
+        }
+        newword = mem::transmute(bytes);
+    }
+
+    ptrace_mod::pokedata(pid, curr, newword).expect(
+        "Error changing the child process memory (last, incomplete bytes)",
+    );
 }
