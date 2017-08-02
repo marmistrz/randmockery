@@ -7,6 +7,7 @@ extern crate libloading;
 extern crate clap;
 
 use std::process::Command;
+use nix::{Error, Errno};
 use nix::sys::wait::{wait, WaitStatus};
 use nix::unistd::Pid;
 
@@ -126,6 +127,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 if map.len() > 0 {
                     continue;
                 } else {
+                    // FIXME: multiple processes, multiple exitcodes...
                     return code;
                 }
             }
@@ -133,13 +135,14 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 let entry = map.entry(pid).or_insert_with(
                     || panic!("Unexpected pid: {}", pid),
                 );
+                let rax = match ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX) {
+                    Ok(no) => no,
+                    Err(Error::Sys(Errno::ESRCH)) => continue,
+                    Err(e) => panic!("ptrace returned an error: {}", e),
+                };
                 match entry.take() {
                     None => {
-                        let no = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX)
-                            .expect(&format!(
-                                "Error peeking the system call number from process {}",
-                                pid
-                            ));
+                        let no = rax;
                         if let Some(ovride) = reg.find(no) {
                             let data = OverrideData {
                                 data: (ovride.atenter)(pid),
@@ -149,17 +152,19 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                         }
                     }
                     Some(data) => {
-                        let ret = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX)
-                            .unwrap();
+                        let ret = rax;
                         if ret < 0 {
                             println!(
                                 "Syscall {} exited with an error, not touching it",
                                 data.syscall_no
                             );
                         } else {
-                            let ovride = reg.find(data.syscall_no).unwrap(); // if this was added to the map, the
+                            // if there's an entry in the map, there must have been
+                            // an override too
+                            let ovride = reg.find(data.syscall_no).unwrap();
                             (ovride.atexit)(pid, &data.data);
                         }
+                        *entry = None;
                     }
                 };
                 pid
@@ -182,6 +187,9 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
             Err(e) => panic!("Unexpected waitpid error: {:?}", e),
         };
 
-        ptrace_mod::syscall(pid).unwrap(); // wait for another
+        match ptrace_mod::syscall(pid) { // wait for another
+            Ok(()) | Err(Error::Sys(Errno::ESRCH)) => {}
+            Err(e) => panic!("ptrace error: {}", e),
+        }
     }
 }
