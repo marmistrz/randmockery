@@ -118,3 +118,19 @@ fn test_clock_gettime() {
     let exitcode = intercept_syscalls(pid, reg);
     assert_eq!(exitcode, 0);
 }
+
+#[test]
+fn test_gettimeofday() {
+    get_mutex!();
+
+    let mut reg = OverrideRegistry::new();
+    reg.add(
+        ::libc::SYS_gettimeofday,
+        time::gettimeofday_atenter,
+        time::gettimeofday_atexit,
+    );
+
+    let pid = spawn_child(Command::new("tests/gettimeofday-test"));
+    let exitcode = intercept_syscalls(pid, reg);
+    assert_eq!(exitcode, 0);
+}

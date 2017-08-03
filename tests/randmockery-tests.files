@@ -6,3 +6,4 @@ getrandom-thread-test.c
 mocktime.c
 time-test-vdso.c
 time-test.c
+gettimeofday-test.c

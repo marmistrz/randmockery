@@ -58,7 +58,29 @@ pub fn clock_gettime_atexit(pid: Pid, data: &HandlerData) {
     };
 
     ptrace_setmem(pid, &buffer, &mut || 0)
+}
 
+pub fn gettimeofday_atenter(pid: Pid) -> HandlerData {
+    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as *mut libc::timespec;
+    print!("{:?}", ptr);
+    HandlerData::Timespec(ptr) // timeval has a compatible signature
+}
+
+pub fn gettimeofday_atexit(pid: Pid, data: &HandlerData) {
+    use std::mem;
+    use ptrace_setmem;
+
+    let_extract!(
+        HandlerData::Timespec(ptr),
+        *data,
+        panic!("Mismatched HandlerData variant")
+    );
+    let buffer = HandlerData::Buffer {
+        bufptr: ptr as usize,
+        buflen: mem::size_of::<libc::timeval>(),
+    };
+
+    ptrace_setmem(pid, &buffer, &mut || 0)
 }
 
 #[cfg(test)]
