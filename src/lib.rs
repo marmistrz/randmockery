@@ -47,7 +47,8 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     let mut exitcode = None;
     while map.len() > 0 {
         // detect enter, get syscall no
-        let pid = match wait() {
+        let status = wait();
+        let pid = match status {
             Ok(WaitStatus::Exited(pid, code)) => {
                 println!("Process {} quit with code {}!", pid, code);
                 map.remove(&pid);
@@ -97,18 +98,20 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 };
                 pid
             }
-            Ok(WaitStatus::PtraceEvent(pid, sig, event)) => {
-                println!("{:?}", WaitStatus::PtraceEvent(pid, sig, event));
+            Ok(WaitStatus::PtraceEvent(pid, _, _)) => {
+                println!("{:?}", status.unwrap());
                 pid
             }
             Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
-                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGCHLD));
+                println!("{:?}", status.unwrap());
                 pid
             }
             Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
-                println!("{:?}", WaitStatus::Stopped(pid, Signal::SIGSTOP));
+                println!("{:?}", status.unwrap());
                 // FIXME process may receive SIGSTOP for another reason
-                map.insert(pid, None);
+                if !map.contains_key(&pid) {
+                    map.insert(pid, None);
+                }
                 pid
             }
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
