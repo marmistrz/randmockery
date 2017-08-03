@@ -26,6 +26,7 @@ macro_rules! get_mutex {
     }
 }
 
+// This will grab the necessary mutex.
 fn test_syscall<F, G>(
     command: &str,
     expected_exitcode: i8,
