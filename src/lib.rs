@@ -33,18 +33,15 @@ pub fn spawn_child(mut command: Command) -> Pid {
 
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
-
-
-    let mut map: HashMap<Pid, Option<OverrideData>> = HashMap::new();
+    let mut map: HashMap<_, Option<OverrideData>> = HashMap::new();
+    map.insert(root_pid, None);
 
     let flags = ptrace::ptrace::PTRACE_O_TRACESYSGOOD | ptrace::ptrace::PTRACE_O_TRACECLONE |
         ptrace::ptrace::PTRACE_O_TRACEFORK;
 
     assert_eq!(wait(), Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)));
-
+    // setoptions must be called on a stopped process!
     ptrace::setoptions(root_pid, flags).unwrap();
-    map.insert(root_pid, None);
-
     ptrace_mod::syscall(root_pid).unwrap(); // wait for another
 
     let mut exitcode = None;
