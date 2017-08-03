@@ -7,30 +7,19 @@ extern crate libloading;
 extern crate clap;
 
 use std::process::Command;
+use std::collections::HashMap;
+
 use nix::{Error, Errno};
-use nix::sys::wait::{wait, WaitStatus};
 use nix::unistd::Pid;
+use nix::sys::ptrace;
+use nix::sys::signal::Signal;
+use nix::sys::wait::{wait, WaitStatus};
 
 mod ptrace_mod;
 pub mod syscall_override;
 pub mod args;
 
 use syscall_override::{OverrideRegistry, HandlerData, OverrideData};
-
-pub fn parse_args() -> Vec<String> {
-    use std::env;
-
-    let mut args_it = env::args();
-    let executable = args_it.next().unwrap();
-    let command: Vec<_> = args_it.collect();
-
-    if command.len() == 0 {
-        println!("Usage: {} command", executable);
-        std::process::exit(1);
-    }
-
-    command
-}
 
 pub fn spawn_child(mut command: Command) -> Pid {
     use ptrace_mod::PtraceSpawnable;
@@ -44,9 +33,7 @@ pub fn spawn_child(mut command: Command) -> Pid {
 
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
-    use std::collections::HashMap;
-    use nix::sys::ptrace;
-    use nix::sys::signal::Signal;
+
 
     let mut map: HashMap<Pid, Option<OverrideData>> = HashMap::new();
 
