@@ -49,7 +49,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
         // detect enter, get syscall no
         let pid = match wait() {
             Ok(WaitStatus::Exited(pid, code)) => {
-                println!("Inferior quit with code {}!", code);
+                println!("Process {} quit with code {}!", pid, code);
                 map.remove(&pid);
                 if pid == root_pid {
                     assert_eq!(exitcode, None, "Child process exited twice");
@@ -61,11 +61,13 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 let entry = map.entry(pid).or_insert_with(
                     || panic!("Unexpected pid: {}", pid),
                 );
+
                 let rax = match ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX) {
                     Ok(no) => no,
                     Err(Error::Sys(Errno::ESRCH)) => continue,
                     Err(e) => panic!("ptrace returned an error: {}", e),
                 };
+
                 match entry.take() {
                     None => {
                         let no = rax;
