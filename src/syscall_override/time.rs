@@ -34,6 +34,10 @@ pub fn time_atexit(pid: Pid, _: &HandlerData) {
     ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64).unwrap()
 }
 
+pub fn time_atexit_allzero(pid: Pid, _: &HandlerData) {
+    ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, 0u64).unwrap()
+}
+
 pub fn clock_gettime_atenter(pid: Pid) -> HandlerData {
     let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as *mut libc::timespec;
     HandlerData::Timespec(ptr)

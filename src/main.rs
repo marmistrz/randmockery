@@ -28,8 +28,16 @@ fn main() {
 
     let mut reg = OverrideRegistry::new();
 
-    reg.add(libc::SYS_getrandom, getrandom::atenter, getrandom::atexit);
-    reg.add(libc::SYS_time, time::time_atenter, time::time_atexit);
+    reg.add(
+        libc::SYS_getrandom,
+        getrandom::atenter,
+        getrandom::atexit_allzero,
+    );
+    reg.add(
+        libc::SYS_time,
+        time::time_atenter,
+        time::time_atexit_allzero,
+    );
     reg.add(
         libc::SYS_clock_gettime,
         time::clock_gettime_atenter,
