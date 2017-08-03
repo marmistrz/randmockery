@@ -60,18 +60,18 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
 
     ptrace_mod::syscall(root_pid).unwrap(); // wait for another
 
-    loop {
+    let mut exitcode = None;
+    while map.len() > 0 {
         // detect enter, get syscall no
         let pid = match wait() {
             Ok(WaitStatus::Exited(pid, code)) => {
                 println!("Inferior quit with code {}!", code);
                 map.remove(&pid);
-                if map.len() > 0 {
-                    continue;
-                } else {
-                    // FIXME: multiple processes, multiple exitcodes...
-                    return code;
+                if pid == root_pid {
+                    assert_eq!(exitcode, None, "Child process exited twice");
+                    exitcode = Some(code);
                 }
+                continue;
             }
             Ok(WaitStatus::PtraceSyscall(pid)) => {
                 let entry = map.entry(pid).or_insert_with(
@@ -134,6 +134,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
             Err(e) => panic!("ptrace error: {}", e),
         }
     }
+    exitcode.expect("Child process did not exit for some reason")
 }
 
 pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
