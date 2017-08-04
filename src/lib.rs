@@ -117,16 +117,18 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                 println!("{:?}", status.unwrap());
                 pid
             }
-            Ok(WaitStatus::Stopped(pid, Signal::SIGCHLD)) => {
-                println!("{:?}", status.unwrap());
-                pid
-            }
-            Ok(WaitStatus::Stopped(pid, Signal::SIGSTOP)) => {
+            Ok(WaitStatus::Stopped(pid, sig @ Signal::SIGSTOP)) => {
                 println!("{:?}", status.unwrap());
                 // FIXME process may receive SIGSTOP for another reason
                 if !map.contains_key(&pid) {
                     map.insert(pid, None);
+                } else {
+                    println!("Inferior received a signal: {:?}", sig)
                 }
+                pid
+            }
+            Ok(WaitStatus::Stopped(pid, sig)) => {
+                println!("Inferior received a signal: {:?}", sig);
                 pid
             }
             Ok(s) => panic!("Unexpected stop reason: {:?}", s),
