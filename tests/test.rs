@@ -27,16 +27,17 @@ macro_rules! get_mutex {
 }
 
 // This will grab the necessary mutex.
-fn test_syscall<F, G>(
+fn test_syscall<'a, F, G, S>(
     command: &str,
     expected_exitcode: i8,
     syscall_no: i64,
     atenter: F,
     atexit: G,
-    preload: Option<&str>,
+    preload: S,
 ) where
     F: 'static + FnMut(Pid) -> HandlerData,
     G: 'static + FnMut(Pid, &HandlerData) -> (),
+    S: Into<Option<&'a str>>,
 {
     get_mutex!();
 
@@ -44,7 +45,7 @@ fn test_syscall<F, G>(
     reg.add(syscall_no, atenter, atexit);
 
     let mut cmd = Command::new(command);
-    if let Some(pr) = preload {
+    if let Some(pr) = preload.into() {
         cmd.env("LD_PRELOAD", pr);
     };
     let pid = spawn_child(cmd);
@@ -121,7 +122,7 @@ fn test_logical_time_vdso() {
         ::libc::SYS_time,
         time::time_atenter,
         time::time_atexit,
-        Some("tests/libmocktime.so"),
+        "tests/libmocktime.so",
     );
 }
 
