@@ -46,9 +46,11 @@ pub fn spawn_child(mut command: Command) -> Pid {
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
 
+type ProcInfo = HashMap<Pid, Option<OverrideData>>;
+
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
-    let mut map: HashMap<_, Option<OverrideData>> = HashMap::new();
+    let mut map: ProcInfo = HashMap::new();
     map.insert(root_pid, None);
 
     let flags = ptrace::ptrace::PTRACE_O_TRACESYSGOOD | ptrace::ptrace::PTRACE_O_TRACECLONE |

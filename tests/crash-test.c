@@ -2,8 +2,6 @@
 #include <sys/signal.h>
 
 int main() {
-    for (;;) {
-        kill(getpid(), SIGTRAP);
-    }
+    for (;;);
     return 0;
 }

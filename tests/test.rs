@@ -15,6 +15,7 @@ use std::thread;
 
 use nix::{Error, Errno};
 use nix::sys::signal::kill;
+use nix::sys::wait::waitpid;
 
 use nix::unistd::Pid;
 
@@ -163,24 +164,24 @@ fn proc_lives(pid: Pid) -> nix::Result<bool> {
 }
 
 #[test]
-fn test_parent_death_kills_child() {
+fn test_parent_panic() {
     get_mutex!();
 
     // a rendezvous channel
     let (tx, rx) = mpsc::sync_channel(0);
 
+    // simulate that `intercept_syscalls` panicks
     let handle = thread::spawn(move || {
-        use std::panic;
-        // Don't be overly talkative
-        panic::set_hook(Box::new(|_| println!("The supervisor panicked!")));
-
         let tid = nix::unistd::gettid();
         let child = spawn_child(Command::new("tests/crash-test"));
         tx.send(tid).unwrap();
         tx.send(child).unwrap();
         // the third send will be ignored, it's here just for synchronization
+        // we have to wait until the main thread asserts that both processes
+        // are alive
         tx.send(child).unwrap();
-        intercept_syscalls(child, OverrideRegistry::new());
+        // just panic instead of intercepting...
+        panic!("This panic is just a test, it should happen");
     });
 
     let supervisor_tid = rx.recv().unwrap();
@@ -208,7 +209,7 @@ fn test_parent_death_kills_child() {
     }
     // wait for the inferior - otherwise it will show as defunct
     // and receive signals
-    nix::sys::wait::waitpid(inferior_pid, None).unwrap();
+    waitpid(inferior_pid, None).unwrap();
 
     assert_eq!(
         proc_lives(supervisor_tid),
