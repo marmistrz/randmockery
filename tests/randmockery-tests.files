@@ -1,4 +1,5 @@
 clock_gettime-test.c
+crash-test.c
 getrandom-fork-test.c
 getrandom-test-mocked.c
 getrandom-test.c

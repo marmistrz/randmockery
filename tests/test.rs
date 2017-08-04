@@ -10,7 +10,11 @@ use randmockery::syscall_override::{OverrideRegistry, HandlerData};
 use randmockery::syscall_override::{getrandom, time};
 
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{mpsc, Mutex};
+use std::thread;
+
+use nix::{Error, Errno};
+use nix::sys::signal::kill;
 
 use nix::unistd::Pid;
 
@@ -147,5 +151,73 @@ fn test_gettimeofday() {
         time::gettimeofday_atenter,
         time::gettimeofday_atexit,
         None,
+    );
+}
+
+fn proc_lives(pid: Pid) -> nix::Result<bool> {
+    match kill(pid, None) {
+        Ok(_) => Ok(true),
+        Err(Error::Sys(Errno::ESRCH)) => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+#[test]
+fn test_parent_death_kills_child() {
+    get_mutex!();
+
+    // a rendezvous channel
+    let (tx, rx) = mpsc::sync_channel(0);
+
+    let handle = thread::spawn(move || {
+        use std::panic;
+        // Don't be overly talkative
+        panic::set_hook(Box::new(|_| println!("The supervisor panicked!")));
+
+        let tid = nix::unistd::gettid();
+        let child = spawn_child(Command::new("tests/crash-test"));
+        tx.send(tid).unwrap();
+        tx.send(child).unwrap();
+        // the third send will be ignored, it's here just for synchronization
+        tx.send(child).unwrap();
+        intercept_syscalls(child, OverrideRegistry::new());
+    });
+
+    let supervisor_tid = rx.recv().unwrap();
+    let inferior_pid = rx.recv().unwrap();
+
+    // the supervisor is waiting, the inferior should be too
+    assert_eq!(
+        proc_lives(supervisor_tid),
+        Ok(true),
+        "Supervisor died before intercepting"
+    );
+    assert_eq!(
+        proc_lives(inferior_pid),
+        Ok(true),
+        "Inferior died before intercepting"
+    );
+
+    // release the supervisor
+    let _ = rx.recv().unwrap();
+
+    // wait for the supervisor to crash
+    match handle.join() {
+        Err(_) => {}
+        Ok(_) => panic!("The supervisor should have crashed"),
+    }
+    // wait for the inferior - otherwise it will show as defunct
+    // and receive signals
+    nix::sys::wait::waitpid(inferior_pid, None).unwrap();
+
+    assert_eq!(
+        proc_lives(supervisor_tid),
+        Ok(false),
+        "Supervisor did not crash"
+    );
+    assert_eq!(
+        proc_lives(inferior_pid),
+        Ok(false),
+        "Inferior is still running"
     );
 }

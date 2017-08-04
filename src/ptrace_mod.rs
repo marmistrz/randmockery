@@ -6,15 +6,13 @@
 
 extern crate nix;
 
-use std;
-
 use nix::libc::{c_long, c_void};
 use nix::sys::ptrace::ptrace;
 use nix::sys::ptrace::ptrace::*;
 use nix::unistd::Pid;
 
 use std::ptr;
-use std::process::{Child, Command};
+use std::process::Command;
 
 use std::os::unix::process::CommandExt;
 
@@ -95,15 +93,15 @@ pub fn traceme() -> nix::Result<()> {
     ).map(|_| ()) // ignore the useless return value
 }
 
-pub trait PtraceSpawnable {
-    fn spawn_ptrace(&mut self) -> std::io::Result<Child>;
+pub trait Ptraceable {
+    fn ptrace(&mut self) -> &mut Self;
 }
 
-impl PtraceSpawnable for Command {
-    fn spawn_ptrace(&mut self) -> std::io::Result<Child> {
+impl Ptraceable for Command {
+    fn ptrace(&mut self) -> &mut Self {
         self.before_exec(|| {
             traceme().expect("Error initalizing ptrace in the child process");
             Ok(())
-        }).spawn()
+        })
     }
 }

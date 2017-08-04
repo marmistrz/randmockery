@@ -5,6 +5,7 @@ extern crate enum_extract;
 extern crate libloading;
 #[macro_use]
 extern crate clap;
+extern crate prctl;
 
 use std::process::Command;
 use std::collections::HashMap;
@@ -21,10 +22,24 @@ pub mod args;
 
 use syscall_override::{OverrideRegistry, HandlerData, OverrideData};
 
-pub fn spawn_child(mut command: Command) -> Pid {
-    use ptrace_mod::PtraceSpawnable;
+trait KillChildrenOnDeath {
+    fn kill_children_on_death(&mut self) -> &mut Self;
+}
 
-    let child = command.spawn_ptrace().expect(
+impl KillChildrenOnDeath for Command {
+    fn kill_children_on_death(&mut self) -> &mut Self {
+        use std::os::unix::process::CommandExt;
+        self.before_exec(|| {
+            prctl::set_death_signal(Signal::SIGHUP as isize).unwrap();
+            Ok(())
+        })
+    }
+}
+
+pub fn spawn_child(mut command: Command) -> Pid {
+    use ptrace_mod::Ptraceable;
+
+    let child = command.kill_children_on_death().ptrace().spawn().expect(
         "Error spawning the child process",
     );
 
