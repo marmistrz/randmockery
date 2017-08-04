@@ -121,7 +121,7 @@ fn test_logical_time_vdso() {
         ::libc::SYS_time,
         time::time_atenter,
         time::time_atexit,
-        Some("tests/time-test-vdso"),
+        Some("tests/libmocktime.so"),
     );
 }
 
