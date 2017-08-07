@@ -7,6 +7,7 @@ extern crate rand;
 extern crate libc;
 
 use nix::unistd::Pid;
+use nix::Result;
 
 use ptrace_setmem;
 use ptrace_mod;
@@ -23,17 +24,17 @@ fn random_byte() -> u8 {
     RNG.with(|cell| cell.borrow_mut().gen::<u8>())
 }
 
-pub fn atenter(pid: Pid) -> HandlerData {
-    HandlerData::Buffer {
-        bufptr: ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as usize,
-        buflen: ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as usize,
-    }
+pub fn atenter(pid: Pid) -> Result<HandlerData> {
+    Ok(HandlerData::Buffer {
+        bufptr: ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI)? as usize,
+        buflen: ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI)? as usize,
+    })
 }
 
-pub fn atexit(pid: Pid, data: &HandlerData) {
-    ptrace_setmem(pid, data, &mut random_byte);
+pub fn atexit(pid: Pid, data: &HandlerData) -> Result<()> {
+    ptrace_setmem(pid, data, &mut random_byte)
 }
 
-pub fn atexit_allzero(pid: Pid, data: &HandlerData) {
+pub fn atexit_allzero(pid: Pid, data: &HandlerData) -> Result<()> {
     ptrace_setmem(pid, data, &mut || 0)
 }

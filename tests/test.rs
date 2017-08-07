@@ -13,7 +13,7 @@ use std::process::Command;
 use std::sync::{mpsc, Mutex};
 use std::thread;
 
-use nix::{Error, Errno};
+use nix::{Error, Errno, Result};
 use nix::sys::signal::kill;
 use nix::sys::wait::waitpid;
 
@@ -40,8 +40,8 @@ fn test_syscall<'a, F, G, S>(
     atexit: G,
     preload: S,
 ) where
-    F: 'static + FnMut(Pid) -> HandlerData,
-    G: 'static + FnMut(Pid, &HandlerData) -> (),
+    F: 'static + FnMut(Pid) -> Result<HandlerData>,
+    G: 'static + FnMut(Pid, &HandlerData) -> Result<()>,
     S: Into<Option<&'a str>>,
 {
     get_mutex!();

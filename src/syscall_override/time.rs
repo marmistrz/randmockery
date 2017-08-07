@@ -6,6 +6,7 @@
 //! the sys_getrandom syscall.
 extern crate nix;
 
+use nix::Result;
 use nix::unistd::Pid;
 use syscall_override::HandlerData;
 use ptrace_mod;
@@ -26,24 +27,24 @@ fn logical_time() -> i64 {
     })
 }
 
-pub fn time_atenter(_: Pid) -> HandlerData {
-    HandlerData::None {}
+pub fn time_atenter(_: Pid) -> Result<HandlerData> {
+    Ok(HandlerData::None {})
 }
 
-pub fn time_atexit(pid: Pid, _: &HandlerData) {
-    ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64).unwrap()
+pub fn time_atexit(pid: Pid, _: &HandlerData) -> Result<()> {
+    ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, logical_time() as u64)
 }
 
-pub fn time_atexit_allzero(pid: Pid, _: &HandlerData) {
-    ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, 0u64).unwrap()
+pub fn time_atexit_allzero(pid: Pid, _: &HandlerData) -> Result<()> {
+    ptrace_mod::pokeuser(pid, ptrace_mod::Register::RAX, 0u64)
 }
 
-pub fn clock_gettime_atenter(pid: Pid) -> HandlerData {
-    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI).unwrap() as *mut libc::timespec;
-    HandlerData::Timespec(ptr)
+pub fn clock_gettime_atenter(pid: Pid) -> Result<HandlerData> {
+    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RSI)? as *mut libc::timespec;
+    Ok(HandlerData::Timespec(ptr))
 }
 
-pub fn clock_gettime_atexit(pid: Pid, data: &HandlerData) {
+pub fn clock_gettime_atexit(pid: Pid, data: &HandlerData) -> Result<()> {
     use std::mem;
     use ptrace_setmem;
 
@@ -60,13 +61,13 @@ pub fn clock_gettime_atexit(pid: Pid, data: &HandlerData) {
     ptrace_setmem(pid, &buffer, &mut || 0)
 }
 
-pub fn gettimeofday_atenter(pid: Pid) -> HandlerData {
-    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI).unwrap() as *mut libc::timespec;
+pub fn gettimeofday_atenter(pid: Pid) -> Result<HandlerData> {
+    let ptr = ptrace_mod::peekuser(pid, ptrace_mod::Register::RDI)? as *mut libc::timespec;
     print!("{:?}", ptr);
-    HandlerData::Timespec(ptr) // timeval has a compatible signature
+    Ok(HandlerData::Timespec(ptr)) // timeval has a compatible signature
 }
 
-pub fn gettimeofday_atexit(pid: Pid, data: &HandlerData) {
+pub fn gettimeofday_atexit(pid: Pid, data: &HandlerData) -> Result<()> {
     use std::mem;
     use ptrace_setmem;
 

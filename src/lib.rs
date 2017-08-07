@@ -10,7 +10,7 @@ extern crate prctl;
 use std::process::Command;
 use std::collections::HashMap;
 
-use nix::{Error, Errno};
+use nix::{Error, Errno, Result};
 use nix::unistd::Pid;
 use nix::sys::ptrace;
 use nix::sys::signal::Signal;
@@ -91,7 +91,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                         let no = rax;
                         if let Some(ovride) = reg.find(no) {
                             let data = OverrideData {
-                                data: (ovride.atenter)(pid),
+                                data: (ovride.atenter)(pid).unwrap(), // FIXME, error handling
                                 syscall_no: no,
                             };
                             *entry = Some(data);
@@ -108,7 +108,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
                             // if there's an entry in the map, there must have been
                             // an override too
                             let ovride = reg.find(data.syscall_no).unwrap();
-                            (ovride.atexit)(pid, &data.data);
+                            (ovride.atexit)(pid, &data.data).unwrap(); // FIXME error handling
                         }
                         *entry = None;
                     }
@@ -145,7 +145,7 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     exitcode.expect("Child process did not exit for some reason")
 }
 
-pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F)
+pub fn ptrace_setmem<F>(pid: Pid, data: &HandlerData, gen: &mut F) -> Result<()>
 where
     F: FnMut() -> u8,
 {
@@ -177,16 +177,14 @@ where
         };
 
         while next < end {
-            ptrace_mod::pokedata(pid, curr, genword()).expect(
-                "Error changing the child process memory",
-            );
+            ptrace_mod::pokedata(pid, curr, genword())?;
             curr += step;
             next += step;
         }
     }
 
 
-    let lastword = ptrace_mod::peekdata(pid, curr).expect("Error peeking the child process memory");
+    let lastword = ptrace_mod::peekdata(pid, curr)?;
     let numzero = end - curr;
     let newword: u64;
 
@@ -198,7 +196,6 @@ where
         newword = mem::transmute(bytes);
     }
 
-    ptrace_mod::pokedata(pid, curr, newword).expect(
-        "Error changing the child process memory (last, incomplete bytes)",
-    );
+    ptrace_mod::pokedata(pid, curr, newword)?;
+    Ok(())
 }
