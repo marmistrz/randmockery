@@ -48,6 +48,102 @@ pub fn spawn_child(mut command: Command) -> Pid {
 
 type ProcInfo = HashMap<Pid, Option<OverrideData>>;
 
+fn handle_syscall(
+    status: WaitStatus,
+    map: &mut ProcInfo,
+    reg: &mut OverrideRegistry,
+) -> Result<Option<i8>> {
+    let pid = match status {
+        WaitStatus::Exited(pid, code) => {
+            println!("Process {} quit with code {}!", pid, code);
+            map.remove(&pid);
+            return Ok(Some(code));
+        }
+        WaitStatus::PtraceSyscall(pid) => {
+            let entry = map.entry(pid).or_insert_with(
+                || panic!("Unexpected pid: {}", pid),
+            );
+
+            let rax = ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX)?;
+
+            match entry.take() {
+                None => {
+                    let no = rax;
+                    if let Some(ovride) = reg.find(no) {
+                        let data = OverrideData {
+                            data: (ovride.atenter)(pid)?,
+                            syscall_no: no,
+                        };
+                        *entry = Some(data);
+                    }
+                }
+                Some(data) => {
+                    let ret = rax;
+                    if ret < 0 {
+                        println!(
+                            "Syscall {} exited with an error, not touching it",
+                            data.syscall_no
+                        );
+                    } else {
+                        // if there's an entry in the map, there must have been
+                        // an override too
+                        let ovride = reg.find(data.syscall_no).unwrap();
+                        (ovride.atexit)(pid, &data.data)?;
+                    }
+                    *entry = None;
+                }
+            };
+            pid
+        }
+        WaitStatus::PtraceEvent(pid, _, _) => {
+            println!("{:?}", status);
+            pid
+        }
+        WaitStatus::Stopped(pid, sig @ Signal::SIGSTOP) => {
+            println!("{:?}", status);
+            // FIXME process may receive SIGSTOP for another reason
+            if !map.contains_key(&pid) {
+                map.insert(pid, None);
+            } else {
+                println!("Inferior received a signal: {:?}", sig)
+            }
+            pid
+        }
+        WaitStatus::Stopped(pid, sig) => {
+            println!("Inferior received a signal: {:?}", sig);
+            pid
+        }
+        s => panic!("Unexpected stop reason: {:?}", s),
+    };
+
+    ptrace_mod::syscall(pid)?;
+    Ok(None)
+}
+
+// The following should be merged into nix:
+// https://github.com/nix-rust/nix/pull/722
+trait WaitStatusPid {
+    fn pid(&self) -> Option<Pid>;
+}
+impl WaitStatusPid for WaitStatus {
+    /// Extracts the PID from the WaitStatus if the status is not StillAlive.
+    fn pid(&self) -> Option<Pid> {
+        use self::WaitStatus::*;
+        match self {
+            &Exited(p, _) => Some(p),
+            &Signaled(p, _, _) => Some(p),
+            &Stopped(p, _) => Some(p),
+            &Continued(p) => Some(p),
+            &StillAlive => None,
+
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            &PtraceEvent(p, _, _) => Some(p),
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            &PtraceSyscall(p) => Some(p),
+        }
+    }
+}
+
 /// Return value: exitcode
 pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     let mut map: ProcInfo = HashMap::new();
@@ -56,90 +152,34 @@ pub fn intercept_syscalls(root_pid: Pid, mut reg: OverrideRegistry) -> i8 {
     let flags = ptrace::ptrace::PTRACE_O_TRACESYSGOOD | ptrace::ptrace::PTRACE_O_TRACECLONE |
         ptrace::ptrace::PTRACE_O_TRACEFORK;
 
-    assert_eq!(wait(), Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)));
+    assert_eq!(
+        wait(),
+        Ok(WaitStatus::Stopped(root_pid, Signal::SIGTRAP)),
+        "Unexpected process caught by wait()"
+    );
     // setoptions must be called on a stopped process!
-    ptrace::setoptions(root_pid, flags).unwrap();
-    ptrace_mod::syscall(root_pid).unwrap(); // wait for another
+    ptrace::setoptions(root_pid, flags).expect("Failed to set tracing options");
+    ptrace_mod::syscall(root_pid).expect("Process died before tracing"); // wait for another
 
     let mut exitcode = None;
     while map.len() > 0 {
         // detect enter, get syscall no
-        let status = wait();
-        let pid = match status {
-            Ok(WaitStatus::Exited(pid, code)) => {
-                println!("Process {} quit with code {}!", pid, code);
-                map.remove(&pid);
-                if pid == root_pid {
-                    assert_eq!(exitcode, None, "Child process exited twice");
-                    exitcode = Some(code);
+        let status = wait().expect("wait() failed");
+        match handle_syscall(status, &mut map, &mut reg) {
+            Ok(code @ Some(_)) => {
+                if status.pid().unwrap() == root_pid {
+                    assert_eq!(exitcode, None, "Exitcode was set twice");
+                    exitcode = code;
                 }
-                continue;
             }
-            Ok(WaitStatus::PtraceSyscall(pid)) => {
-                let entry = map.entry(pid).or_insert_with(
-                    || panic!("Unexpected pid: {}", pid),
-                );
-
-                let rax = match ptrace_mod::peekuser(pid, ptrace_mod::Register::ORIG_RAX) {
-                    Ok(no) => no,
-                    Err(Error::Sys(Errno::ESRCH)) => continue,
-                    Err(e) => panic!("ptrace returned an error: {}", e),
-                };
-
-                match entry.take() {
-                    None => {
-                        let no = rax;
-                        if let Some(ovride) = reg.find(no) {
-                            let data = OverrideData {
-                                data: (ovride.atenter)(pid).unwrap(), // FIXME, error handling
-                                syscall_no: no,
-                            };
-                            *entry = Some(data);
-                        }
-                    }
-                    Some(data) => {
-                        let ret = rax;
-                        if ret < 0 {
-                            println!(
-                                "Syscall {} exited with an error, not touching it",
-                                data.syscall_no
-                            );
-                        } else {
-                            // if there's an entry in the map, there must have been
-                            // an override too
-                            let ovride = reg.find(data.syscall_no).unwrap();
-                            (ovride.atexit)(pid, &data.data).unwrap(); // FIXME error handling
-                        }
-                        *entry = None;
-                    }
-                };
-                pid
+            Ok(None) => {}
+            Err(Error::Sys(Errno::ESRCH)) => {
+                println!(
+                    "Warning: process {} died while a syscall was being processed.",
+                    status.pid().unwrap()
+                )
             }
-            Ok(WaitStatus::PtraceEvent(pid, _, _)) => {
-                println!("{:?}", status.unwrap());
-                pid
-            }
-            Ok(WaitStatus::Stopped(pid, sig @ Signal::SIGSTOP)) => {
-                println!("{:?}", status.unwrap());
-                // FIXME process may receive SIGSTOP for another reason
-                if !map.contains_key(&pid) {
-                    map.insert(pid, None);
-                } else {
-                    println!("Inferior received a signal: {:?}", sig)
-                }
-                pid
-            }
-            Ok(WaitStatus::Stopped(pid, sig)) => {
-                println!("Inferior received a signal: {:?}", sig);
-                pid
-            }
-            Ok(s) => panic!("Unexpected stop reason: {:?}", s),
-            Err(e) => panic!("Unexpected waitpid error: {:?}", e),
-        };
-
-        match ptrace_mod::syscall(pid) { // wait for another
-            Ok(()) | Err(Error::Sys(Errno::ESRCH)) => {}
-            Err(e) => panic!("ptrace error: {}", e),
+            Err(e) => panic!("handle_syscall: unexpected error: {}", e),
         }
     }
     exitcode.expect("Child process did not exit for some reason")
