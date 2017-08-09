@@ -20,7 +20,7 @@ mod ptrace_mod;
 pub mod syscall_override;
 pub mod args;
 
-use syscall_override::{OverrideRegistry, HandlerData, OverrideData};
+use syscall_override::{OverrideRegistry, HandlerData, SyscallNo};
 
 trait KillChildrenOnDeath {
     fn kill_children_on_death(&mut self) -> &mut Self;
@@ -46,6 +46,10 @@ pub fn spawn_child(mut command: Command) -> Pid {
     Pid::from_raw(child.id() as i32) // This is awful, see https://github.com/nix-rust/nix/issues/656
 }
 
+pub struct OverrideData {
+    pub syscall_no: SyscallNo,
+    pub data: HandlerData,
+}
 type ProcInfo = HashMap<Pid, Option<OverrideData>>;
 
 fn handle_syscall(
@@ -118,30 +122,6 @@ fn handle_syscall(
 
     ptrace_mod::syscall(pid)?;
     Ok(None)
-}
-
-// The following should be merged into nix:
-// https://github.com/nix-rust/nix/pull/722
-trait WaitStatusPid {
-    fn pid(&self) -> Option<Pid>;
-}
-impl WaitStatusPid for WaitStatus {
-    /// Extracts the PID from the WaitStatus if the status is not StillAlive.
-    fn pid(&self) -> Option<Pid> {
-        use self::WaitStatus::*;
-        match self {
-            &Exited(p, _) => Some(p),
-            &Signaled(p, _, _) => Some(p),
-            &Stopped(p, _) => Some(p),
-            &Continued(p) => Some(p),
-            &StillAlive => None,
-
-            #[cfg(any(target_os = "linux", target_os = "android"))]
-            &PtraceEvent(p, _, _) => Some(p),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
-            &PtraceSyscall(p) => Some(p),
-        }
-    }
 }
 
 /// Return value: exitcode

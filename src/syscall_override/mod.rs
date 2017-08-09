@@ -6,19 +6,24 @@ use nix::{libc, Result};
 pub mod getrandom;
 pub mod time;
 
-type SyscallNo = i64;
+pub type SyscallNo = i64;
 
-pub struct OverrideData {
-    pub syscall_no: SyscallNo,
-    pub data: HandlerData,
-}
-
+/// An enum containing all needed variants of data which needs to be stored
+/// by a handler.
+/// For best extensibility, we'd have used runtime polymorphism with trait
+/// objects, but this was a PoC.
 pub enum HandlerData {
     Buffer { bufptr: usize, buflen: usize },
     Timespec(*mut libc::timespec),
     None,
 }
 
+/// This struct fully describes the actions that need to be done
+/// when a syscall with number `syscall` gets intercepted.
+/// The routines `atenter` and `atexit` are executed on relevant events.
+///
+/// If a ptrace error occurs, the functions should not panic but just
+/// propagate the error.
 pub struct SyscallOverride {
     /// syscall the override will match
     pub syscall: SyscallNo,

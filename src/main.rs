@@ -28,6 +28,9 @@ fn main() {
 
     let mut reg = OverrideRegistry::new();
 
+    // we're using _allzero variants since any logical time emulation or
+    // seeded randomness is not safe when multiple threads interleave their
+    // requests
     reg.add(
         libc::SYS_getrandom,
         getrandom::atenter,
